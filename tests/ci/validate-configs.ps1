@@ -264,8 +264,18 @@ $manifestAssertion = {
 
 $themeAssertion = {
     param($theme)
-    foreach ($key in @('background', 'backgroundPanel', 'backgroundElement', 'backgroundMenu')) {
-        if (-not (Test-ThemeNoneKey -Node $theme -Key $key)) { throw "Theme-Schluessel '$key' muss 'none' enthalten" }
+    # Nur der Canvas ist transparent ("none"); Panels/Elemente/Menues sind opak.
+    if (-not (Test-ThemeNoneKey -Node $theme -Key 'background')) {
+        throw "Theme-Schluessel 'background' muss 'none' sein (Canvas transparent)"
+    }
+    foreach ($key in @('backgroundPanel', 'backgroundElement', 'backgroundMenu')) {
+        if (Test-ThemeNoneKey -Node $theme -Key $key) {
+            throw "Theme-Schluessel '$key' darf nicht 'none' sein (opake Oberflaechen)"
+        }
+    }
+    $selected = $theme.theme.selectedListItemText
+    if ($null -eq $selected -or "$selected" -eq 'none') {
+        throw "Theme-Schluessel 'selectedListItemText' fehlt oder ist transparent"
     }
 }
 
