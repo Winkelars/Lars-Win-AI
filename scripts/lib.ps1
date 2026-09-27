@@ -84,6 +84,24 @@ function Resolve-ManifestPath {
     return $resolved
 }
 
+function Get-NormalizedPath {
+    # Kanonisiert einen Pfad fuer den Zielvergleich von Links/Junctions:
+    # entfernt \\?\-, normalisiert / -> \ und zieht, wenn der Pfad existiert,
+    # den realen FullName (loest u. a. 8.3-Kurznamen auf).
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
+    $resolved = ([string]$Path).Trim()
+    $resolved = $resolved -replace '^\\\\\?\\', ''
+    $resolved = $resolved -replace '/', '\'
+    if (Test-Path -LiteralPath $resolved) {
+        $item = Get-Item -LiteralPath $resolved -Force -ErrorAction SilentlyContinue
+        if ($null -ne $item) {
+            return ([string]$item.FullName).TrimEnd('\')
+        }
+    }
+    return $resolved.TrimEnd('\')
+}
+
 function Backup-Path {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Function name frozen by CONTRACTS.md (WS-I).')]
     param([string]$Path)
@@ -129,7 +147,7 @@ function New-JunctionSafe {
     if ([string]::IsNullOrWhiteSpace($LinkPath) -or [string]::IsNullOrWhiteSpace($TargetPath)) { return $result }
     if (-not (Test-Path -LiteralPath $TargetPath)) { return $result }
 
-    $targetNorm = ([string](Resolve-ManifestPath -Path $TargetPath)).TrimEnd('\')
+    $targetNorm = Get-NormalizedPath -Path $TargetPath
     $existing = Get-Item -LiteralPath $LinkPath -Force -ErrorAction SilentlyContinue
 
     if ($null -ne $existing) {
@@ -139,9 +157,7 @@ function New-JunctionSafe {
             $targetMatches = $false
             foreach ($candidate in $links) {
                 if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
-                $candidateNorm = ([string]$candidate).TrimEnd('\')
-                $candidateNorm = $candidateNorm -replace '^\\\\\?\\', ''
-                if ($candidateNorm -ieq $targetNorm) { $targetMatches = $true }
+                if ((Get-NormalizedPath -Path $candidate) -ieq $targetNorm) { $targetMatches = $true }
             }
             if ($targetMatches) {
                 $result.Ok = $true
@@ -193,7 +209,7 @@ function New-FileSymlinkOrCopy {
     if ([string]::IsNullOrWhiteSpace($LinkPath) -or [string]::IsNullOrWhiteSpace($TargetPath)) { return $result }
     if (-not (Test-Path -LiteralPath $TargetPath)) { return $result }
 
-    $targetNorm = ([string](Resolve-ManifestPath -Path $TargetPath)).TrimEnd('\')
+    $targetNorm = Get-NormalizedPath -Path $TargetPath
     $existing = Get-Item -LiteralPath $LinkPath -Force -ErrorAction SilentlyContinue
 
     if ($null -ne $existing) {
@@ -202,8 +218,7 @@ function New-FileSymlinkOrCopy {
             $links = @($existing.Target)
             foreach ($candidate in $links) {
                 if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
-                $candidateNorm = (([string]$candidate).TrimEnd('\')) -replace '^\\\\\?\\', ''
-                if ($candidateNorm -ieq $targetNorm) {
+                if ((Get-NormalizedPath -Path $candidate) -ieq $targetNorm) {
                     $result.Ok = $true
                     $result.Changed = $false
                     $result.Mode = 'symlink'
