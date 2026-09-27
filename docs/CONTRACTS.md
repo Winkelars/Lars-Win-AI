@@ -382,7 +382,7 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
   - `[window] decorations = "None"`, `opacity = 0.90`, `dynamic_title = true`,
     `title = "AI-Assistant"`, `startup_mode = "Windowed"`, `padding = { x = 8, y = 8 }`,
     `dynamic_padding = true`, `blur = false` (Windows-Fallback).
-  - `[font] family = "CaskaydiaCove Nerd Font"`, `size = 11.0`, `normal.family`,
+  - `[font] family = "CaskaydiaCove Nerd Font"`, `size = 15.0`, `normal.family`,
     `bold/italic/bold_italic` ebenfalls CaskaydiaCove.
   - `[keyboard] bindings`: `{ key = "Space", mods = "Control|Shift", action = "ToggleViMode" }`.
   - `[terminal] shell = { program = "herdr" }` — **oder** Start via `-e herdr`;
