@@ -7,6 +7,7 @@ type FakeWindow struct {
 	Process     string
 	Foreground  bool
 	Minimized   bool
+	Hidden      bool
 
 	Monitor         int
 	RestoreCalls    int
@@ -38,6 +39,9 @@ func (f *FakeWindow) IsForeground() bool { return f.Foreground }
 // IsMinimized meldet, ob das Fenster minimiert ist.
 func (f *FakeWindow) IsMinimized() bool { return f.Minimized }
 
+// IsVisible meldet, ob das Fenster sichtbar ist.
+func (f *FakeWindow) IsVisible() bool { return !f.Hidden }
+
 // Restore macht das Fenster wieder sichtbar.
 func (f *FakeWindow) Restore() error {
 	f.RestoreCalls++
@@ -45,10 +49,11 @@ func (f *FakeWindow) Restore() error {
 	return f.Err
 }
 
-// Minimize minimiert das Fenster.
+// Minimize versteckt das Fenster (Growth bleibt unveraendert).
 func (f *FakeWindow) Minimize() error {
 	f.MinimizeCalls++
 	f.Minimized = true
+	f.Hidden = true
 	f.Foreground = false
 	return f.Err
 }

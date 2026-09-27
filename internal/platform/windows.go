@@ -61,6 +61,7 @@ const (
 	swHide       = 0
 	swShowNormal = 1
 	swMaximize   = 3
+	swShow       = 5
 	swMinimize   = 6
 	swRestore    = 9
 
@@ -160,7 +161,7 @@ func (m *windowsManager) FindByTitle(title string) (window.Window, bool) {
 	if strings.TrimSpace(title) == "" {
 		return nil, false
 	}
-	for _, w := range m.visibleTitled() {
+	for _, w := range m.candidateWindows() {
 		if window.TitleMatches(w.Title(), title) {
 			return w, true
 		}
@@ -172,7 +173,7 @@ func (m *windowsManager) FindByProcess(processName string) (window.Window, bool)
 	if strings.TrimSpace(processName) == "" {
 		return nil, false
 	}
-	for _, w := range m.visibleTitled() {
+	for _, w := range m.candidateWindows() {
 		if window.ProcessMatches(w.ProcessName(), processName) {
 			return w, true
 		}
@@ -180,7 +181,10 @@ func (m *windowsManager) FindByProcess(processName string) (window.Window, bool)
 	return nil, false
 }
 
-func (m *windowsManager) visibleTitled() []*winWindow {
+// candidateWindows liefert getitelte Top-Level-Fenster INCLUDER versteckter
+// Fenster (SW_HIDE setzt WS_VISIBLE zurueck). So findet der Daemon das vom
+// Toggle versteckte Alacritty-Fenster wieder.
+func (m *windowsManager) candidateWindows() []*winWindow {
 	all, _ := m.Enumerate()
 	out := make([]*winWindow, 0, len(all))
 	for _, w := range all {
@@ -188,7 +192,7 @@ func (m *windowsManager) visibleTitled() []*winWindow {
 		if !ok {
 			continue
 		}
-		if !ww.isVisible() || ww.Title() == "" {
+		if ww.Title() == "" {
 			continue
 		}
 		out = append(out, ww)
@@ -243,6 +247,8 @@ func (w *winWindow) IsForeground() bool {
 
 func (w *winWindow) IsMinimized() bool { return w.isIconic() }
 
+func (w *winWindow) IsVisible() bool { return w.isVisible() }
+
 func (w *winWindow) Restore() error {
 	if w.isIconic() {
 		procShowWindow.Call(uintptr(w.hwnd), swRestore)
@@ -250,8 +256,11 @@ func (w *winWindow) Restore() error {
 	return nil
 }
 
+// Minimize versteckt das Fenster (SW_HIDE). Bewusst KEIN SW_MINIMIZE: das
+// setzt die Client-Groesse auf 0, ConPTY meldet 0x0 an herdr/opencode und die
+// opencode-Session bricht ab.
 func (w *winWindow) Minimize() error {
-	procShowWindow.Call(uintptr(w.hwnd), swMinimize)
+	procShowWindow.Call(uintptr(w.hwnd), swHide)
 	return nil
 }
 
@@ -262,6 +271,9 @@ func (w *winWindow) ShowNormal() error {
 
 func (w *winWindow) Focus() error {
 	hwnd := uintptr(w.hwnd)
+	if !w.isVisible() {
+		procShowWindow.Call(hwnd, swShow)
+	}
 	if w.isIconic() {
 		procShowWindow.Call(hwnd, swRestore)
 		// Warten, bis die Wiederherstellung abgeschlossen ist; sonst schlaegt
@@ -329,6 +341,9 @@ func (w *winWindow) MoveAndMaximize(monitor int) error {
 		if r, ok = primaryMonitorRect(); !ok {
 			return fmt.Errorf("kein Monitor %d gefunden", monitor)
 		}
+	}
+	if !w.isVisible() {
+		procShowWindow.Call(uintptr(w.hwnd), swShow)
 	}
 	// Erst wiederherstellen (stellt die vorherige Groesse her), DANN pruefen.
 	// So loest das Maximieren nach dem Minimieren kein Resize aus, wenn die

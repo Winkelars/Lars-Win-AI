@@ -98,13 +98,9 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error) {
 	}
 
 	win, exists := window.Find(d.Windows, cfg.WindowTitle, cfg.ProcessName)
-	foreground := exists && win.IsForeground()
-	minimized := exists && win.IsMinimized()
-	if minimized {
-		// Ein minimiertes Fenster kann sich als "foreground" melden; fuer die
-		// Zustandsmaschine zaehlt es als nicht vorn -> wiederherstellen.
-		foreground = false
-	}
+	// Versteckt oder minimiert zaehlt als nicht im Vordergrund -> wieder zeigen.
+	minimized := exists && (win.IsMinimized() || !win.IsVisible())
+	foreground := exists && win.IsVisible() && !win.IsMinimized() && win.IsForeground()
 	focused := false
 	if d.Herdr != nil {
 		focused = opencodeFocused(ctx, d.Herdr, cfg)
