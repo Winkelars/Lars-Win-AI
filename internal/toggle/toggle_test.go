@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Winkelars/Lars-Win-AI/internal/config"
@@ -104,6 +105,34 @@ func TestRunActionFocusPane(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("AgentFocus nicht aufgerufen: %v", stub.Calls())
+	}
+}
+
+func TestFocusOpencodeSequence(t *testing.T) {
+	cfg := testConfig(t)
+	stub := &herdr.StubClient{
+		Agents: []herdr.Agent{{
+			Name:        "opencode",
+			Kind:        "opencode",
+			PaneID:      "w1:p1",
+			TabID:       "w1:t1",
+			WorkspaceID: "w1",
+		}},
+	}
+	if err := focusOpencode(context.Background(), Deps{Herdr: stub, CFG: cfg}, cfg); err != nil {
+		t.Fatalf("focusOpencode: %v", err)
+	}
+	got := strings.Join(stub.Calls(), " | ")
+	last := -1
+	for _, want := range []string{"workspace focus w1", "tab focus w1:t1", "agent focus opencode"} {
+		i := strings.Index(got, want)
+		if i < 0 {
+			t.Fatalf("fehlt %q in: %s", want, got)
+		}
+		if i < last {
+			t.Fatalf("falsche Reihenfolge (%q): %s", want, got)
+		}
+		last = i
 	}
 }
 

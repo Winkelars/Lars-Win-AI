@@ -13,11 +13,13 @@ type StubClient struct {
 	Panes   []Pane
 	SplitID string
 
-	AgentListFn  func(ctx context.Context) ([]Agent, error)
-	AgentFocusFn func(ctx context.Context, name string) error
-	AgentStartFn func(ctx context.Context, name, kind, paneID string, args []string) error
-	PaneListFn   func(ctx context.Context) ([]Pane, error)
-	PaneSplitFn  func(ctx context.Context, paneID, direction string) (string, error)
+	AgentListFn      func(ctx context.Context) ([]Agent, error)
+	AgentFocusFn     func(ctx context.Context, name string) error
+	AgentStartFn     func(ctx context.Context, name, kind, paneID string, args []string) error
+	PaneListFn       func(ctx context.Context) ([]Pane, error)
+	PaneSplitFn      func(ctx context.Context, paneID, direction string) (string, error)
+	WorkspaceFocusFn func(ctx context.Context, workspaceID string) error
+	TabFocusFn       func(ctx context.Context, tabID string) error
 
 	mu    sync.Mutex
 	calls []string
@@ -100,3 +102,21 @@ func (s *StubClient) PaneSplit(ctx context.Context, paneID, direction string) (s
 
 var _ Client = (*StubClient)(nil)
 var _ Client = (*ExecClient)(nil)
+
+// WorkspaceFocus zeichnet den Fokus auf.
+func (s *StubClient) WorkspaceFocus(ctx context.Context, workspaceID string) error {
+	s.record("workspace focus " + workspaceID)
+	if s.WorkspaceFocusFn != nil {
+		return s.WorkspaceFocusFn(ctx, workspaceID)
+	}
+	return nil
+}
+
+// TabFocus zeichnet den Fokus auf.
+func (s *StubClient) TabFocus(ctx context.Context, tabID string) error {
+	s.record("tab focus " + tabID)
+	if s.TabFocusFn != nil {
+		return s.TabFocusFn(ctx, tabID)
+	}
+	return nil
+}

@@ -52,6 +52,8 @@ type Client interface {
 	AgentStart(ctx context.Context, name, kind, paneID string, args []string) error
 	PaneList(ctx context.Context) ([]Pane, error)
 	PaneSplit(ctx context.Context, paneID, direction string) (string, error)
+	WorkspaceFocus(ctx context.Context, workspaceID string) error
+	TabFocus(ctx context.Context, tabID string) error
 }
 
 // Runner führt einen herdr-Befehl aus. Er ist eine Naht für Tests.
@@ -177,6 +179,24 @@ func (c *ExecClient) PaneSplit(ctx context.Context, paneID, direction string) (s
 		return "", err
 	}
 	return ParsePaneSplit(out)
+}
+
+// WorkspaceFocus ruft `herdr workspace focus <workspace_id>` auf.
+func (c *ExecClient) WorkspaceFocus(ctx context.Context, workspaceID string) error {
+	if strings.TrimSpace(workspaceID) == "" {
+		return nil
+	}
+	_, err := c.exec(ctx, "workspace", "focus", workspaceID)
+	return err
+}
+
+// TabFocus ruft `herdr tab focus <tab_id>` auf.
+func (c *ExecClient) TabFocus(ctx context.Context, tabID string) error {
+	if strings.TrimSpace(tabID) == "" {
+		return nil
+	}
+	_, err := c.exec(ctx, "tab", "focus", tabID)
+	return err
 }
 
 // FindAgent findet einen Agenten primär über den Namen, sonst über

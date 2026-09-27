@@ -177,6 +177,14 @@ func focusOpencode(ctx context.Context, d Deps, cfg *config.Config) error {
 	agents, err := d.Herdr.AgentList(ctx)
 	if err == nil {
 		if a, ok := herdr.FindAgent(agents, cfg.AgentName, cfg.AgentKind); ok {
+			// Explizit Workspace -> Tab -> Pane fokussieren: ein Pane-Fokus
+			// zieht Tab/Workspace nicht automatisch mit (herdr-jump).
+			if a.WorkspaceID != "" {
+				_ = d.Herdr.WorkspaceFocus(ctx, a.WorkspaceID)
+			}
+			if a.TabID != "" {
+				_ = d.Herdr.TabFocus(ctx, a.TabID)
+			}
 			if target := a.Target(); target != "" {
 				return d.Herdr.AgentFocus(ctx, target)
 			}

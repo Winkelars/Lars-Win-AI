@@ -317,9 +317,11 @@ type Client interface {
     AgentStart(ctx context.Context, name, kind, paneID string, args []string) error
     PaneList(ctx context.Context) ([]Pane, error)
     PaneSplit(ctx context.Context, paneID, direction string) (string, error)
+    WorkspaceFocus(ctx context.Context, workspaceID string) error
+    TabFocus(ctx context.Context, tabID string) error
 }
-type Agent struct { Name, Kind, Status, PaneID, TabID, WorkspaceID string; Focused bool }
-type Pane  struct { ID, TabID, WorkspaceID, CWD string; AgentName string }
+type Agent struct { Label, Name, Kind, Status, PaneID, TabID, WorkspaceID string; Focused bool }
+type Pane  struct { ID, TabID, WorkspaceID, CWD string; AgentName string; Focused bool }
 
 // internal/toggle
 type Action int // ActionNone, ActionStart, ActionForeground, ActionFocusPane, ActionMinimize, ActionFocusAndForeground
@@ -353,8 +355,11 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
 **Herdr-Bridge-Regeln:**
 - `herdr agent list` parsen: Agents liegen unter `.result.agents[]` mit Feldern
   `agent`, `agent_status`, `focused`, `pane_id`, `tab_id`, `workspace_id`.
-- opencode-Agent finden: `agent == cfg.agent_name` **oder** `agent.kind`-Match;
-  primär Name.
+- opencode-Agent finden: primaer ueber den eindeutigen `name`, sonst ueber das
+  Label/Kind (`agent`); Agenten ohne Namen werden ueber ihre `pane_id` fokussiert.
+- Fokus-Sequenz (wichtig): `workspace focus <ws>` -> `tab focus <tab>` ->
+  `agent focus <pane|name>`. Ein Pane-Fokus zieht Tab/Workspace **nicht**
+  automatisch mit; ohne die Sequenz bleibt der sichtbare View stehen.
 - Kein Agent → designierten Pane aus `pane_state_file` lesen, mit `pane list`
   validieren; sonst `pane split <pane> --direction right --no-focus` →
   neue Pane-ID aus `.result.pane.pane_id`; dann
