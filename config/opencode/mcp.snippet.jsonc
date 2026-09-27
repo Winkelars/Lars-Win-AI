@@ -1,0 +1,18 @@
+{
+  // WS-O MCP-Fragment. Der Installer (WS-I) merged diesen Block idempotent
+  // in ~/.config/opencode/opencode.jsonc unter den Top-Level-Key `mcp`.
+  // Vorhandene Server (zoho, brain-Reference) bleiben unberuehrt; vorhandene
+  // Kommentare der Zieldatei bleiben erhalten (siehe docs/CONTRACTS.md §10).
+  "mcp": {
+    "exa": {
+      "type": "remote",
+      "url": "https://mcp.exa.ai/mcp",
+      "enabled": true
+    },
+    "playwright": {
+      "type": "local",
+      "command": ["cmd", "/c", "playwright-mcp", "--browser", "chromium"],
+      "enabled": true
+    }
+  }
+}

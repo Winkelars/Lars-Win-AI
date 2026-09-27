@@ -1,0 +1,30 @@
+# Lars-Win-AI — Herdr-Konfiguration (WS-A)
+# Vertrag: docs/CONTRACTS.md §8. Ziel-Layout: %APPDATA%\herdr\config.toml.
+# Schema geprüft gegen `herdr --default-config` (herdr 0.9.1-preview).
+#
+# Theme-Schema / Transparenz — getroffene Annahme:
+#   Herdr kennt KEIN explizites Alpha/`transparent`-Token. Die Default-Config
+#   dokumentiert für Farbtokens nur: hex (#rrggbb), named colors, rgb(r,g,b)
+#   oder `panel_bg = "reset"`. "reset" lässt das Panel den Standard-Hintergrund
+#   des äußeren Terminals verwenden; in Alacritty (opacity = 0.90, bg #000000)
+#   ergibt das den gewünschten durchscheinenden Panel-Hintergrund.
+#   Deshalb: Built-in-Theme "terminal" (erbt Terminalfarben) + panel_bg="reset".
+#   Details siehe config/herdr/README.md.
+
+# Onboarding beim Erststart unterdrücken (im Bestand bereits gesetzt).
+onboarding = false
+
+[theme]
+# Built-in-Theme, das die Farben des äußeren Terminals übernimmt.
+name = "terminal"
+
+[theme.custom]
+# Panel-Hintergrund auf den Terminal-Default zurücksetzen → transparent
+# gegenüber Alacritty (siehe Annahme oben).
+panel_bg = "reset"
+
+[ui]
+# Nativer Host-Cursor beibehalten.
+host_cursor = "native"
+# Stabiler OS-Fenstertitel, über den der Go-Daemon das Fenster findet.
+window_title = "AI-Assistant"
