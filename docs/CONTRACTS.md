@@ -362,8 +362,10 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
   `agent focus <pane|name>`. Ein Pane-Fokus zieht Tab/Workspace **nicht**
   automatisch mit; ohne die Sequenz bleibt der sichtbare View stehen.
 - Kein Agent → designierten Pane aus `pane_state_file` lesen, mit `pane list`
-  validieren; sonst `pane split <pane> --direction right --no-focus` →
-  neue Pane-ID aus `.result.pane.pane_id`; dann
+  validieren; ist die Session frisch und existiert **genau ein agentenloser
+  Pane** (Root-Shell), wird dieser **direkt** genutzt (kein `pane split`, sonst
+  zwei Panes + ConPTY-Resize-Leak). Sonst `pane split <pane> --direction right
+  --no-focus` → neue Pane-ID aus `.result.pane.pane_id`; dann
   `agent start <name> --kind <kind> --pane <id> -- <args...>`.
 - Fehlender Server/Socket → `herdr_retry_count` × `herdr_retry_ms` warten.
 - Alles außerhalb von `internal/platform` muss auf Nicht-Windows kompilieren

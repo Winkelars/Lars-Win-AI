@@ -195,17 +195,16 @@ func TestRunActionStart(t *testing.T) {
 		t.Errorf("Fensteraktionen falsch: %+v", frame)
 	}
 	calls := stub.Calls()
-	wantSplit := false
+	if strings.Contains(strings.Join(calls, " "), "pane split") {
+		t.Errorf("unerwarteter pane split: %v", calls)
+	}
 	wantStart := false
 	for _, c := range calls {
-		if c == "pane split pane-1 right" {
-			wantSplit = true
-		}
-		if c == "agent start opencode kind=opencode pane=pane-9" {
+		if c == "agent start opencode kind=opencode pane=pane-1" {
 			wantStart = true
 		}
 	}
-	if !wantSplit || !wantStart {
+	if !wantStart {
 		t.Errorf("opencode-Pane nicht gestartet: %v", calls)
 	}
 
@@ -213,8 +212,26 @@ func TestRunActionStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadPaneState: %v", err)
 	}
-	if st == nil || st.PaneID != "pane-9" {
+	if st == nil || st.PaneID != "pane-1" {
 		t.Errorf("PaneState = %+v", st)
+	}
+}
+
+func TestStartOpencodeSplitsWhenPanesExist(t *testing.T) {
+	cfg := testConfig(t)
+	stub := &herdr.StubClient{
+		Panes:   []herdr.Pane{{ID: "pane-1", AgentName: ""}, {ID: "pane-2", AgentName: ""}},
+		SplitID: "pane-9",
+	}
+	if err := startOpencode(context.Background(), stub, cfg); err != nil {
+		t.Fatalf("startOpencode: %v", err)
+	}
+	calls := strings.Join(stub.Calls(), " | ")
+	if !strings.Contains(calls, "pane split pane-1 right") {
+		t.Errorf("erwarteter split fehlt: %s", calls)
+	}
+	if !strings.Contains(calls, "agent start opencode kind=opencode pane=pane-9") {
+		t.Errorf("agent start fehlt: %s", calls)
 	}
 }
 

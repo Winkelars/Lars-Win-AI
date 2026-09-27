@@ -215,22 +215,31 @@ func focusOpencode(ctx context.Context, d Deps, cfg *config.Config) error {
 }
 
 func startOpencode(ctx context.Context, c herdr.Client, cfg *config.Config) error {
+	panes, err := c.PaneList(ctx)
+	if err != nil {
+		return fmt.Errorf("pane list: %w", err)
+	}
+
 	paneID := ""
+	// 1) Validierter designierter Pane aus der State-Datei.
 	if st, err := LoadPaneState(cfg.PaneStatePath()); err == nil && st != nil && st.PaneID != "" {
-		if panes, err := c.PaneList(ctx); err == nil {
-			for _, p := range panes {
-				if p.ID == st.PaneID {
-					paneID = p.ID
-					break
-				}
+		for _, p := range panes {
+			if p.ID == st.PaneID {
+				paneID = p.ID
+				break
 			}
 		}
 	}
+
+	// 2) Frische Session (genau ein agentenloser Pane = Root-Shell): diesen
+	//    direkt nutzen statt zu splitten. Ein split legt einen zweiten Pane an
+	//    und loest ueber ConPTY eine Resize-Sequenz aus, die in die Shell leakt.
+	if paneID == "" && len(panes) == 1 && panes[0].AgentName == "" {
+		paneID = panes[0].ID
+	}
+
+	// 3) Sonst einen dedizierten Pane erzeugen.
 	if paneID == "" {
-		panes, err := c.PaneList(ctx)
-		if err != nil {
-			return fmt.Errorf("pane list: %w", err)
-		}
 		if len(panes) == 0 {
 			return fmt.Errorf("kein Pane zum Splitten vorhanden")
 		}
@@ -240,6 +249,7 @@ func startOpencode(ctx context.Context, c herdr.Client, cfg *config.Config) erro
 		}
 		paneID = id
 	}
+
 	if err := c.AgentStart(ctx, cfg.AgentName, cfg.AgentKind, paneID, cfg.AgentArgs); err != nil {
 		return fmt.Errorf("agent start: %w", err)
 	}
