@@ -75,7 +75,9 @@ winget/scoop bevorzugt, `mcp`-Key (nicht `mcpServers`).
    Arbeitsbereich von Monitor 2 legen → opencode-Pane fokussieren.
 3. Fenster Vordergrund, opencode-Pane **nicht** fokussiert → nur opencode-Pane
    fokussieren (wechselt ggf. in dessen Tab/Workspace).
-4. Fenster Vordergrund **und** opencode-Pane fokussiert → minimieren.
+4. Fenster Vordergrund und opencode-Pane fokussiert → **verstecken**
+   (`SW_HIDE`, nicht `SW_MINIMIZE`; echtes Minimieren setzt die ConPTY-Groesse
+   auf 0 und beendet die opencode-Session).
 
 ### opencode-Pane-Auflösung
 

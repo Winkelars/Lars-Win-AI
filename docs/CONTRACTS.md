@@ -304,6 +304,8 @@ type Window interface {
     Title() string
     ProcessName() string
     IsForeground() bool
+    IsMinimized() bool
+    IsVisible() bool
     Restore() error
     Minimize() error
     ShowNormal() error
@@ -351,7 +353,11 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
 >
 > `MoveAndMaximize` legt das Fenster randlos ueber den **Arbeitsbereich** des
 > Zielmonitors (windowed, ausgebreitet; Taskleiste bleibt sichtbar) — kein
-> Vollbild.
+> Vollbild, und ist idempotent (resized nur bei abweichender Groesse).
+>
+> `ActionMinimize` **versteckt** das Fenster (`SW_HIDE`), es minimiert NICHT:
+> `SW_MINIMIZE` setzt die Client-Groesse auf 0 → ConPTY/opencode-Session bricht
+> ab. Versteckte Fenster werden weiter gefunden (`IsVisible`) und wieder gezeigt.
 
 **Herdr-Bridge-Regeln:**
 - `herdr agent list` parsen: Agents liegen unter `.result.agents[]` mit Feldern
@@ -401,6 +407,7 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
 - Datei: `config/herdr/config.toml`. Bestehende `[ui] host_cursor = "native"`
   beibehalten, ergänzen:
   - `[ui] window_title = "AI-Assistant"` (stabiles OS-Fenstertitel zum Auffinden).
+  - `[terminal] default_shell = "pwsh.exe"` (PowerShell 7 als Pane-Shell).
   - Theme-Block mit transparentem Panel-Hintergrund passend zu Alacritty
     (`opacity`/`transparent`-Optionen, je nach Herdr-Theme-Schema).
 - `Herdr`-Integration: Installer (WS-I) führt
