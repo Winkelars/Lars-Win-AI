@@ -207,10 +207,12 @@ func focusOpencode(ctx context.Context, d Deps, cfg *config.Config) error {
 			_ = d.Herdr.TabFocus(ctx, a.TabID)
 		}
 		if target := a.Target(); target != "" {
+			d.logf("focus: opencode gefunden -> %s", target)
 			return d.Herdr.AgentFocus(ctx, target)
 		}
 		return nil
 	}
+	d.logf("focus: kein opencode-Agent in %d Agent(en) -> starte neu", len(agents))
 	return startOpencode(ctx, d.Herdr, cfg)
 }
 
