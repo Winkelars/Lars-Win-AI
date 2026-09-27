@@ -26,6 +26,8 @@ AutoHotkey als Abhängigkeit durch einen eigenen Hintergrundprozess.
 - **opencode**: Theme mit **100 % transparentem Hintergrund**, falls möglich.
 - **`herdr --skill`** wird als opencode-Skill installiert.
 - **Playwright-MCP** und **Exa Search MCP** werden konfiguriert.
+- Die opencode-Sitzung wird standardmäßig mit **`--auto`** gestartet
+  (Auto-Approve nicht explizit verneinter Permissions).
 
 ## 2. Ist-Zustand (verifiziert auf dem Referenzsystem)
 
@@ -79,7 +81,9 @@ winget/scoop bevorzugt, `mcp`-Key (nicht `mcpServers`).
 `herdr agent list` → Agent `kind=opencode` vorhanden → `herdr agent focus <name>`.
 Nicht vorhanden → designierten Pane (persistiert in State-Datei, validiert)
 nutzen, sonst `herdr pane split` + `herdr agent start <name> --kind opencode
---pane <id>`.
+--pane <id>`. opencode wird dabei mit **`--auto`** gestartet; kann Herdr den
+opencode-Aufruf nicht mit Zusatz-Flags versehen, wird das als offener Punkt
+geführt (ggf. Start-Command-Override in der Herdr-Integration).
 
 ## 4. Entschiedene Design-Fragen
 
@@ -91,6 +95,7 @@ nutzen, sonst `herdr pane split` + `herdr agent start <name> --kind opencode
 | Herdr-Fokus + opencode-Pane nicht fokussiert | **Zum opencode-Panel springen** (nicht minimieren) |
 | Keine opencode-Session | **opencode-Session starten** |
 | Autostart | **Task Scheduler** (At log on) |
+| opencode-Aufruf | Standardmäßig mit **`--auto`** (Auto-Approve) |
 
 ## 5. Repo-Struktur
 
@@ -175,6 +180,7 @@ Lars-Win-AI/
 - MCP-Merge (idempotent, **kein** Clobber): `exa` (remote) + `playwright`
   (local) ergänzen; zoho/brain bleiben unberührt.
 - Skill installieren (`herdr`), `EDITOR`/`VISUAL = nvim` als User-Env setzen.
+- Standardaufruf der opencode-Sitzung: **`opencode --auto`**.
 
 ### F) Font
 
