@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/Winkelars/Lars-Win-AI/internal/config"
@@ -190,7 +191,7 @@ func focusOpencode(ctx context.Context, d Deps, cfg *config.Config) error {
 	if d.Herdr == nil {
 		return nil
 	}
-	agents, err := d.Herdr.AgentList(ctx)
+	agents, err := agentListRetry(ctx, d.Herdr, 5, 200*time.Millisecond)
 	if err != nil {
 		// Kein Neustart bei transientem herdr-Fehler: sonst wuerde ein
 		// doppelter opencode-Launcher gestartet (und ggf. Control-Sequenzen
@@ -253,6 +254,11 @@ func startOpencode(ctx context.Context, c herdr.Client, cfg *config.Config) erro
 	}
 
 	if err := c.AgentStart(ctx, cfg.AgentName, cfg.AgentKind, paneID, cfg.AgentArgs); err != nil {
+		if strings.Contains(err.Error(), "agent_pane_busy") {
+			// Der Pane beherbergt bereits einen Agenten (herdr agent list war
+			// transient leer) - kein erneuter Launcher, kein Leak.
+			return nil
+		}
 		return fmt.Errorf("agent start: %w", err)
 	}
 	_ = SavePaneState(cfg.PaneStatePath(), &PaneState{
@@ -260,6 +266,28 @@ func startOpencode(ctx context.Context, c herdr.Client, cfg *config.Config) erro
 		UpdatedAt: time.Now().UTC(),
 	})
 	return nil
+}
+
+// agentListRetry liest die Agentenliste und wiederholt bei leerer/fehlerhafter
+// Antwort, weil herdrs `agent list` bei Headless-Aufrufen kurzzeitig leer sein
+// kann (z. B. direkt nach Minimieren/Wiederherstellen).
+func agentListRetry(ctx context.Context, c herdr.Client, attempts int, delay time.Duration) ([]herdr.Agent, error) {
+	var agents []herdr.Agent
+	var err error
+	for i := 0; i < attempts; i++ {
+		agents, err = c.AgentList(ctx)
+		if err == nil && len(agents) > 0 {
+			return agents, nil
+		}
+		if i < attempts-1 {
+			select {
+			case <-ctx.Done():
+				return agents, ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+	}
+	return agents, err
 }
 
 func startAlacritty(cfg *config.Config) error {
