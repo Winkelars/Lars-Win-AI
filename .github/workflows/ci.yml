@@ -152,10 +152,30 @@ jobs:
           Invoke-Pester -Configuration $config
 
       # Neovim wird fuer die Lua-Syntaxpruefung in validate-configs.ps1
-      # benoetigt und ist auf windows-latest nicht vorinstalliert.
+      # benoetigt und ist auf windows-latest nicht vorinstalliert. choco legt
+      # nvim.exe nicht zuverlaessig auf den PATH der Folgeschritte, daher wird
+      # das Verzeichnis explizit via GITHUB_PATH exportiert.
       - name: Install Neovim (Lua syntax check)
         shell: pwsh
-        run: choco install neovim --no-progress -y
+        run: |
+          choco install neovim --no-progress -y
+          $dirs = @(
+            'C:\ProgramData\chocolatey\bin'
+            'C:\tools\neovim'
+            'C:\ProgramData\chocolatey\lib\neovim'
+          )
+          $found = $null
+          foreach ($dir in $dirs) {
+            if (Test-Path -LiteralPath $dir) {
+              $exe = Get-ChildItem -LiteralPath $dir -Recurse -Filter nvim.exe -File -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+              if ($exe) { $found = $exe.FullName; break }
+            }
+          }
+          if (-not $found) { throw 'nvim.exe nach choco-Installation nicht gefunden' }
+          $binDir = Split-Path -Parent $found
+          Write-Host "nvim: $found"
+          $binDir | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
 
       - name: Validate configs
         shell: pwsh
