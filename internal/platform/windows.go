@@ -34,6 +34,9 @@ var (
 	procSetForegroundWindow      = user32.NewProc("SetForegroundWindow")
 	procBringWindowToTop         = user32.NewProc("BringWindowToTop")
 	procSwitchToThisWindow       = user32.NewProc("SwitchToThisWindow")
+	procAttachThreadInput        = user32.NewProc("AttachThreadInput")
+	procPeekMessageW             = user32.NewProc("PeekMessageW")
+	procKeybdEvent               = user32.NewProc("keybd_event")
 	procSetWindowPos             = user32.NewProc("SetWindowPos")
 	procMonitorFromPoint         = user32.NewProc("MonitorFromPoint")
 	procEnumDisplayMonitors      = user32.NewProc("EnumDisplayMonitors")
@@ -82,6 +85,8 @@ const (
 	wmQuit       = 0x0012
 
 	llkhfInjected = 0x10
+
+	keyeventfKeyUp = 0x0002
 
 	vkShift    = 0x10
 	vkControl  = 0x11
@@ -255,11 +260,40 @@ func (w *winWindow) Focus() error {
 	if w.isIconic() {
 		procShowWindow.Call(uintptr(w.hwnd), swRestore)
 	}
-	procBringWindowToTop.Call(uintptr(w.hwnd))
-	if ret, _, _ := procSetForegroundWindow.Call(uintptr(w.hwnd)); ret == 0 {
-		// SetForegroundWindow unterliegt der Foreground-Sperre; der
-		// undokumentierte Fallback erzwingt den Wechsel dennoch.
-		procSwitchToThisWindow.Call(uintptr(w.hwnd), 1)
+	hwnd := uintptr(w.hwnd)
+	if fg, _, _ := procGetForegroundWindow.Call(); fg == hwnd {
+		return nil
+	}
+
+	// An den aktuellen Foreground-Thread andocken: das hebt die Windows-
+	// Foreground-Sperre auf, sodass SetForegroundWindow greift. Der aufrufende
+	// Thread braucht dafuer eine Message-Queue.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var m msg
+	procPeekMessageW.Call(uintptr(unsafe.Pointer(&m)), 0, 0, 0, 0)
+
+	curThread, _, _ := procGetCurrentThreadID.Call()
+	fg, _, _ := procGetForegroundWindow.Call()
+	fgThread, _, _ := procGetWindowThreadProcessID.Call(fg, 0)
+	attached := false
+	if fgThread != 0 && fgThread != curThread {
+		if ret, _, _ := procAttachThreadInput.Call(fgThread, curThread, 1); ret != 0 {
+			attached = true
+		}
+	}
+	procBringWindowToTop.Call(hwnd)
+	switched, _, _ := procSetForegroundWindow.Call(hwnd)
+	if attached {
+		procAttachThreadInput.Call(fgThread, curThread, 0)
+	}
+	if switched == 0 {
+		// Letzter Fallback: ein simulierter Alt-Druck hebt die Sperre auf.
+		procKeybdEvent.Call(vkMenu, 0, 0, 0)
+		procKeybdEvent.Call(vkMenu, 0, keyeventfKeyUp, 0)
+		if ret, _, _ := procSetForegroundWindow.Call(hwnd); ret == 0 {
+			procSwitchToThisWindow.Call(hwnd, 1)
+		}
 	}
 	return nil
 }
