@@ -1,0 +1,25 @@
+# Go / Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+bin/
+dist/
+aid
+
+# Go workspace
+go.work
+go.work.sum
+
+# PowerShell
+install.log
+*.bak
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
