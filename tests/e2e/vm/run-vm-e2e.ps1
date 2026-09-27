@@ -49,13 +49,16 @@ Write-DriverLog ('VM: ' + $vm.Name)
 Start-LabVmAndWait -Vm $vm | Out-Null
 Write-DriverLog 'VM laeuft'
 
-Save-VmScreen -VMName $vm.Name -Path (Join-Path $runDir '00-before.png') | Out-Null
-Write-DriverLog 'Screenshot 00-before.png'
-
 $sec = ConvertTo-SecureString $GuestPassword -AsPlainText -Force
 $cred = New-Object System.Management.Automation.PSCredential($GuestUser, $sec)
 $session = New-LabSession -VMName $vm.Name -Credential $cred
 Write-DriverLog 'PowerShell-Direct-Session offen'
+
+$beforeShot = Join-Path $runDir '00-before.png'
+if (-not (Save-GuestScreen -Session $session -LocalPath $beforeShot)) {
+    Save-VmScreen -VMName $vm.Name -Path $beforeShot | Out-Null
+}
+Write-DriverLog 'Screenshot 00-before.png'
 
 try {
     $prep = Invoke-Command -Session $session -ScriptBlock {
@@ -87,7 +90,10 @@ try {
         Set-Content -LiteralPath (Join-Path $runDir 'e2e-run.txt') -Value $e2e.Output -Encoding UTF8
         Write-DriverLog ('E2E exit=' + $e2e.ExitCode)
 
-        Save-VmScreen -VMName $vm.Name -Path (Join-Path $runDir '01-after.png') | Out-Null
+        $afterShot = Join-Path $runDir '01-after.png'
+        if (-not (Save-GuestScreen -Session $session -LocalPath $afterShot)) {
+            Save-VmScreen -VMName $vm.Name -Path $afterShot | Out-Null
+        }
         Write-DriverLog 'Screenshot 01-after.png'
     } else {
         $e2e = [pscustomobject]@{ ExitCode = 0 }

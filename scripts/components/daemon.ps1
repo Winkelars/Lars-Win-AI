@@ -144,7 +144,7 @@
             $action = New-ScheduledTaskAction -Execute $exePath -Argument 'run'
             $trigger = New-ScheduledTaskTrigger -AtLogOn
             $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-            $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
+            $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Highest
             Register-ScheduledTask -TaskName $taskName -TaskPath $taskFolder -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
             $changed = $true
             Write-Log "daemon: Task $taskFolder$taskName registriert." -Level Success -LogFile $Context.LogFile

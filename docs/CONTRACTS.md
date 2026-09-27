@@ -264,9 +264,10 @@ aid help | --help
 ```
 
 - `--no-hook`: Hook wird nicht installiert; erlaubt Test/VM-Betrieb.
-- `register` legt Task `Lars-Win-AI\\aid` mit Trigger `At log on`, Settings
-  `-RunLevel Highest` ist NICHT nötig (Hook braucht kein Admin),
-  `-ExecutionTimeLimit 0`, `-RestartCount 3`, Action = `<repo>\bin\aid.exe run`.
+- `register` legt Task `Lars-Win-AI\aid` mit Trigger `At log on`, Settings
+  `-RunLevel Highest` (Daemon laeuft elevated, damit Herdr/opencode elevated
+  laufen — ohne UAC-Prompt), `-ExecutionTimeLimit 0`, `-RestartCount 3`,
+  Action = `<repo>\bin\aid.exe run`.
 - Build: `go build -ldflags "-H=windowsgui" -o bin/aid.exe ./cmd/aid`
   (**keine** Konsolenausgabe im Hintergrund).
 

@@ -79,3 +79,53 @@ function Save-VmScreen {
     $bmp.Dispose()
     return $Path
 }
+
+# Erstellt einen Screenshot der interaktiven Guest-Session ueber einen
+# kurzlebigen Scheduled Task (funktioniert auch im Enhanced Session Mode, wo
+# der Hyper-V-Thumbnail nur den Basic-Video-Head zeigt/leer bleibt).
+function Save-GuestScreen {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Interner VM-Helfer; -WhatIf hier nicht sinnvoll.')]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseUsingScopeModifierInNewRunspaces', '', Justification = 'Werte werden via -ArgumentList/param uebergeben, nicht per Closure.')]
+    param(
+        [Parameter(Mandatory)]$Session,
+        [Parameter(Mandatory)][string]$LocalPath
+    )
+    $guestDir = 'C:\Windows\Temp\lwai'
+    $guestScript = Join-Path $guestDir 'guest-shot.ps1'
+    $guestPng = Join-Path $guestDir 'shot.png'
+
+    $shot = @'
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+$b = [System.Windows.Forms.SystemInformation]::VirtualScreen
+$bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$g.CopyFromScreen($b.Left, $b.Top, 0, 0, $bmp.Size)
+$bmp.Save('__OUT__', [System.Drawing.Imaging.ImageFormat]::Png)
+$bmp.Dispose()
+'@.Replace('__OUT__', $guestPng)
+    $b64 = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($shot))
+
+    $created = Invoke-Command -Session $Session -ScriptBlock {
+        param($b64, $dir, $guestScript, $guestPng)
+        $ErrorActionPreference = 'Stop'
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        if (Test-Path -LiteralPath $guestPng) { Remove-Item -LiteralPath $guestPng -Force }
+        [IO.File]::WriteAllText($guestScript, [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($b64)))
+        Unregister-ScheduledTask -TaskName 'LWAIShot' -Confirm:$false -ErrorAction SilentlyContinue
+        $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile -ExecutionPolicy Bypass -File "{0}"' -f $guestScript)
+        $principal = New-ScheduledTaskPrincipal -UserId ("{0}\{1}" -f $env:USERDOMAIN, $env:USERNAME) -LogonType Interactive -RunLevel Limited
+        Register-ScheduledTask -TaskName 'LWAIShot' -Action $action -Principal $principal -Force | Out-Null
+        Start-ScheduledTask -TaskName 'LWAIShot'
+        $deadline = (Get-Date).AddSeconds(20)
+        while (-not (Test-Path -LiteralPath $guestPng) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+        Unregister-ScheduledTask -TaskName 'LWAIShot' -Confirm:$false -ErrorAction SilentlyContinue
+        return (Test-Path -LiteralPath $guestPng)
+    } -ArgumentList $b64, $guestDir, $guestScript, $guestPng
+
+    if (-not $created) { return $false }
+    $dir = Split-Path -Parent $LocalPath
+    if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    Copy-Item -FromSession $Session -Path $guestPng -Destination $LocalPath -Force
+    return $true
+}
