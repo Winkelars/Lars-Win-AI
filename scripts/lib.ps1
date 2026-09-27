@@ -593,3 +593,136 @@ function New-AidResult {
         Messages  = @()
     }
 }
+
+# --- Nerd Font (CaskaydiaCove) ---------------------------------------------
+# Der Font wird NICHT ueber winget installiert (die 'winget-font'-Quelle ist
+# nicht auf jedem System vorhanden, und der E2E wuerde eine externe Quelle
+# voraussetzen). Stattdessen laden wir das gepinnte Nerd-Fonts-Release von
+# GitHub und registrieren die Schnitte pro Benutzer (kein Admin noetig).
+
+$script:AidFontSpec = @{
+    Repo    = 'ryanoasis/nerd-fonts'
+    Version = '3.4.0'
+    Asset   = 'CascadiaCode.zip'
+    Family  = 'CaskaydiaCove Nerd Font'
+    Entries = @(
+        [pscustomobject]@{ File = 'CaskaydiaCoveNerdFont-Regular.ttf';    Name = 'CaskaydiaCove Nerd Font (TrueType)' }
+        [pscustomobject]@{ File = 'CaskaydiaCoveNerdFont-Bold.ttf';       Name = 'CaskaydiaCove Nerd Font Bold (TrueType)' }
+        [pscustomobject]@{ File = 'CaskaydiaCoveNerdFont-Italic.ttf';     Name = 'CaskaydiaCove Nerd Font Italic (TrueType)' }
+        [pscustomobject]@{ File = 'CaskaydiaCoveNerdFont-BoldItalic.ttf'; Name = 'CaskaydiaCove Nerd Font Bold Italic (TrueType)' }
+    )
+}
+
+function Get-AidFontDirectory {
+    return (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Microsoft\Windows\Fonts')
+}
+
+function Get-AidFontRegistryPath {
+    return 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+}
+
+function Initialize-AidFontNative {
+    if (-not ('Aid.FontNative' -as [type])) {
+        Add-Type -Namespace 'Aid' -Name 'FontNative' -MemberDefinition @'
+[DllImport("gdi32.dll", SetLastError=true, CharSet=CharSet.Unicode)] public static extern int AddFontResourceW(string lpFileName);
+[DllImport("gdi32.dll", SetLastError=true, CharSet=CharSet.Unicode)] public static extern bool RemoveFontResourceW(string lpFileName);
+[DllImport("user32.dll", SetLastError=true)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
+'@
+    }
+}
+
+function Update-AidFontChange {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Interner Helfer; loest lediglich WM_FONTCHANGE aus.')]
+    [CmdletBinding()]
+    param()
+    Initialize-AidFontNative
+    # HWND_BROADCAST + WM_FONTCHANGE, SMTO_ABORTIFHUNG.
+    $result = [IntPtr]::Zero
+    [void][Aid.FontNative]::SendMessageTimeout([IntPtr]0xffff, 0x001D, [IntPtr]::Zero, [IntPtr]::Zero, 0x0002, 1000, [ref]$result)
+}
+
+function Test-AidFontInstalled {
+    $dir = Get-AidFontDirectory
+    $reg = Get-AidFontRegistryPath
+    if (-not (Test-Path -LiteralPath $reg)) { return $false }
+    foreach ($entry in $script:AidFontSpec.Entries) {
+        if (-not (Test-Path -LiteralPath (Join-Path -Path $dir -ChildPath $entry.File))) { return $false }
+        if ($null -eq (Get-ItemProperty -Path $reg -Name $entry.Name -ErrorAction SilentlyContinue)) { return $false }
+    }
+    return $true
+}
+
+function Install-AidFont {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Interner Installer-Helfer; Planung erfolgt ueber -DryRun.')]
+    [CmdletBinding()]
+    param(
+        [string]$LogFile,
+        [switch]$DryRun
+    )
+    $result = @{ Ok = $true; Changed = $false; Messages = @() }
+    if (Test-AidFontInstalled) { return $result }
+    if ($DryRun) {
+        $result.Changed = $true
+        $result.Messages += "[DryRun] Nerd Font '$($script:AidFontSpec.Family)' wuerde installiert."
+        return $result
+    }
+
+    $url = 'https://github.com/{0}/releases/download/v{1}/{2}' -f $script:AidFontSpec.Repo, $script:AidFontSpec.Version, $script:AidFontSpec.Asset
+    $temp = Join-Path -Path $env:TEMP -ChildPath ('lwai-font-' + [Guid]::NewGuid().ToString('N'))
+    try {
+        New-Item -ItemType Directory -Path $temp -Force | Out-Null
+        $zip = Join-Path -Path $temp -ChildPath 'font.zip'
+        Write-Log "font: lade $url" -Level Info -LogFile $LogFile
+        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing -ErrorAction Stop
+        $extract = Join-Path -Path $temp -ChildPath 'extract'
+        Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force -ErrorAction Stop
+
+        $dir = Get-AidFontDirectory
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        $reg = Get-AidFontRegistryPath
+        if (-not (Test-Path -LiteralPath $reg)) { New-Item -Path $reg -Force | Out-Null }
+
+        Initialize-AidFontNative
+        foreach ($entry in $script:AidFontSpec.Entries) {
+            $source = Get-ChildItem -LiteralPath $extract -Recurse -Filter $entry.File -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($null -eq $source) { throw "Font-Datei fehlt im Archiv: $($entry.File)" }
+            $target = Join-Path -Path $dir -ChildPath $entry.File
+            Copy-Item -LiteralPath $source.FullName -Destination $target -Force
+            New-ItemProperty -Path $reg -Name $entry.Name -Value $target -PropertyType String -Force | Out-Null
+            [void][Aid.FontNative]::AddFontResourceW($target)
+        }
+        Update-AidFontChange
+        $result.Changed = $true
+        Write-Log "font: '$($script:AidFontSpec.Family)' installiert ($dir)." -Level Success -LogFile $LogFile
+    } catch {
+        $result.Ok = $false
+        $result.Messages += "Font-Installation fehlgeschlagen: $($_.Exception.Message)"
+        Write-Log "font: Installation fehlgeschlagen: $($_.Exception.Message)" -Level Error -LogFile $LogFile
+    } finally {
+        Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    return $result
+}
+
+function Uninstall-AidFont {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Interner Uninstaller-Helfer; Planung erfolgt ueber -DryRun.')]
+    [CmdletBinding()]
+    param(
+        [switch]$DryRun
+    )
+    $dir = Get-AidFontDirectory
+    $reg = Get-AidFontRegistryPath
+    $removed = $false
+    Initialize-AidFontNative
+    foreach ($entry in $script:AidFontSpec.Entries) {
+        $target = Join-Path -Path $dir -ChildPath $entry.File
+        if (-not (Test-Path -LiteralPath $target)) { continue }
+        $removed = $true
+        if ($DryRun) { continue }
+        [void][Aid.FontNative]::RemoveFontResourceW($target)
+        Remove-ItemProperty -Path $reg -Name $entry.Name -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue
+    }
+    if ($removed -and -not $DryRun) { Update-AidFontChange }
+    return $removed
+}

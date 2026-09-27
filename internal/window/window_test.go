@@ -18,21 +18,21 @@ func TestTitleMatches(t *testing.T) {
 }
 
 func TestProcessMatches(t *testing.T) {
-	if !ProcessMatches("alacritty.exe", "alacritty.exe") {
+	if !ProcessMatches("wezterm-gui.exe", "wezterm-gui.exe") {
 		t.Errorf("identische Namen erwartet")
 	}
-	if !ProcessMatches("Alacritty", "alacritty.exe") {
+	if !ProcessMatches("WezTerm-GUI", "wezterm-gui.exe") {
 		t.Errorf(".exe-Endung soll ignoriert werden")
 	}
-	if ProcessMatches("notepad.exe", "alacritty.exe") {
+	if ProcessMatches("notepad.exe", "wezterm-gui.exe") {
 		t.Errorf("kein Match erwartet")
 	}
 }
 
 func TestFindFallsBackToProcess(t *testing.T) {
-	w := NewFakeWindow("irgendein Titel", "alacritty.exe")
+	w := NewFakeWindow("irgendein Titel", "wezterm-gui.exe")
 	m := NewFakeManager(w)
-	got, ok := Find(m, "AI-Assistant", "alacritty.exe")
+	got, ok := Find(m, "AI-Assistant", "wezterm-gui.exe")
 	if !ok || got != Window(w) {
 		t.Fatalf("Prozess-Fallback fehlgeschlagen: %v %v", got, ok)
 	}
@@ -42,7 +42,7 @@ func TestFindFallsBackToProcess(t *testing.T) {
 }
 
 func TestFakeWindowActions(t *testing.T) {
-	w := NewFakeWindow("AI-Assistant", "alacritty.exe")
+	w := NewFakeWindow("AI-Assistant", "wezterm-gui.exe")
 	if err := w.Restore(); err != nil {
 		t.Fatal(err)
 	}

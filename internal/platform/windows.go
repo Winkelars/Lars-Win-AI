@@ -183,7 +183,7 @@ func (m *windowsManager) FindByProcess(processName string) (window.Window, bool)
 
 // candidateWindows liefert getitelte Top-Level-Fenster INCLUDER versteckter
 // Fenster (SW_HIDE setzt WS_VISIBLE zurueck). So findet der Daemon das vom
-// Toggle versteckte Alacritty-Fenster wieder.
+// Toggle versteckte WezTerm-Fenster wieder.
 func (m *windowsManager) candidateWindows() []*winWindow {
 	all, _ := m.Enumerate()
 	out := make([]*winWindow, 0, len(all))

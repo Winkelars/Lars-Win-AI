@@ -21,7 +21,7 @@ type Action int
 const (
 	// ActionNone bedeutet: nichts zu tun.
 	ActionNone Action = iota
-	// ActionStart: Fenster fehlt -> Alacritty + herdr starten.
+	// ActionStart: Fenster fehlt -> WezTerm + herdr starten.
 	ActionStart
 	// ActionForeground: Fenster existiert, ist aber nicht im Vordergrund.
 	ActionForeground
@@ -82,7 +82,7 @@ func Decide(foreground, windowExists, opencodeFocused bool) Action {
 	}
 }
 
-// startProcess ist eine Naht für Tests (Alacritty-Start).
+// startProcess ist eine Naht für Tests (WezTerm-Start).
 var startProcess = func(cmd *exec.Cmd) error { return cmd.Start() }
 
 // Run ermittelt den Zustand und führt ihn real aus.
@@ -111,7 +111,7 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error) {
 		exists, foreground, minimized, focused, action)
 	switch action {
 	case ActionStart:
-		if err := startAlacritty(cfg); err != nil {
+		if err := startWezterm(cfg); err != nil {
 			return action, err
 		}
 		w, ok := waitForWindow(ctx, d.Windows, cfg)
@@ -119,7 +119,7 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error) {
 			return action, fmt.Errorf("Fenster %q erschien nicht innerhalb %dms",
 				cfg.WindowTitle, cfg.StartupTimeoutMS)
 		}
-		if err := w.MoveAndMaximize(cfg.Monitor); err != nil {
+		if err := settleAndMaximize(ctx, w, cfg); err != nil {
 			return action, err
 		}
 		if err := w.Focus(); err != nil {
@@ -286,16 +286,37 @@ func agentListRetry(ctx context.Context, c herdr.Client, attempts int, delay tim
 	return agents, err
 }
 
-func startAlacritty(cfg *config.Config) error {
-	args := []string{"-T", cfg.WindowTitle}
-	if cfg.AlacrittyConfig != "" {
-		args = append(args, "--config-file", cfg.AlacrittyConfig)
+func startWezterm(cfg *config.Config) error {
+	// Globales --config-file muss vor dem Subkommando stehen; `start -- herdr`
+	// startet herdr im neuen Fenster. Den festen Fenstertitel erzwingt die
+	// WezTerm-Config via `format-window-title` ("AI-Assistant").
+	args := []string{}
+	if cfg.WeztermConfig != "" {
+		args = append(args, "--config-file", cfg.WeztermConfig)
 	}
-	args = append(args, "-e", "herdr")
-	cmd := exec.Command(cfg.AlacrittyPath, args...)
+	args = append(args, "start", "--", "herdr")
+	cmd := exec.Command(cfg.WeztermPath, args...)
 	platform.HideConsole(cmd)
 	if err := startProcess(cmd); err != nil {
-		return fmt.Errorf("alacritty starten (%s): %w", cfg.AlacrittyPath, err)
+		return fmt.Errorf("wezterm starten (%s): %w", cfg.WeztermPath, err)
+	}
+	return nil
+}
+
+// settleAndMaximize wendet MoveAndMaximize mehrfach an: WezTerm setzt seine
+// Fenstergeometrie beim Start kurz nach dem Erscheinen noch selbst und kann den
+// ersten Aufruf sonst ueberschreiben (Fenster startet dann nicht ausgebreitet).
+func settleAndMaximize(ctx context.Context, w window.Window, cfg *config.Config) error {
+	const attempts = 4
+	for i := 0; i < attempts; i++ {
+		if err := w.MoveAndMaximize(cfg.Monitor); err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
 	}
 	return nil
 }

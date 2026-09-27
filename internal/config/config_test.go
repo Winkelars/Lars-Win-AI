@@ -10,7 +10,7 @@ func clearAidEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
 		"AID_WINDOW_TITLE", "AID_MONITOR", "AID_AGENT_NAME", "AID_AGENT_KIND",
-		"AID_AGENT_ARGS", "AID_ALACRITTY_PATH", "AID_ALACRITTY_CONFIG",
+		"AID_AGENT_ARGS", "AID_WEZTERM_PATH", "AID_WEZTERM_CONFIG",
 		"AID_HERDR_PATH", "AID_CONFIG",
 	} {
 		t.Setenv(key, "")
@@ -22,7 +22,7 @@ func TestDefaults(t *testing.T) {
 	if c.WindowTitle != "AI-Assistant" {
 		t.Errorf("WindowTitle = %q", c.WindowTitle)
 	}
-	if c.ProcessName != "alacritty.exe" {
+	if c.ProcessName != "wezterm-gui.exe" {
 		t.Errorf("ProcessName = %q", c.ProcessName)
 	}
 	if c.Monitor != 2 {
@@ -88,7 +88,7 @@ func TestLoadMergesDefaultsWithFile(t *testing.T) {
 	if !cfg.Hotkey.AltOnly || !cfg.Hotkey.ExcludeAltGr {
 		t.Errorf("Hotkey-Defaults verloren: %+v", cfg.Hotkey)
 	}
-	if cfg.WindowTitle != "AI-Assistant" || cfg.ProcessName != "alacritty.exe" {
+	if cfg.WindowTitle != "AI-Assistant" || cfg.ProcessName != "wezterm-gui.exe" {
 		t.Errorf("Feld-Defaults verloren: %+v", cfg)
 	}
 	if cfg.Path != path {
@@ -103,8 +103,8 @@ func TestEnvOverrides(t *testing.T) {
 	t.Setenv("AID_AGENT_NAME", "myagent")
 	t.Setenv("AID_AGENT_KIND", "opencode")
 	t.Setenv("AID_AGENT_ARGS", "--auto --verbose")
-	t.Setenv("AID_ALACRITTY_PATH", `D:\alacritty.exe`)
-	t.Setenv("AID_ALACRITTY_CONFIG", `D:\alacritty.toml`)
+	t.Setenv("AID_WEZTERM_PATH", `D:\wezterm.exe`)
+	t.Setenv("AID_WEZTERM_CONFIG", `D:\wezterm.lua`)
 	t.Setenv("AID_HERDR_PATH", `D:\herdr.exe`)
 
 	path := filepath.Join(t.TempDir(), "config.json")
@@ -128,8 +128,8 @@ func TestEnvOverrides(t *testing.T) {
 	if len(cfg.AgentArgs) != 2 || cfg.AgentArgs[0] != "--auto" || cfg.AgentArgs[1] != "--verbose" {
 		t.Errorf("AgentArgs = %v", cfg.AgentArgs)
 	}
-	if cfg.AlacrittyPath != `D:\alacritty.exe` || cfg.AlacrittyConfig != `D:\alacritty.toml` {
-		t.Errorf("Alacritty = %q / %q", cfg.AlacrittyPath, cfg.AlacrittyConfig)
+	if cfg.WeztermPath != `D:\wezterm.exe` || cfg.WeztermConfig != `D:\wezterm.lua` {
+		t.Errorf("Wezterm = %q / %q", cfg.WeztermPath, cfg.WeztermConfig)
 	}
 	if cfg.HerdrPath != `D:\herdr.exe` {
 		t.Errorf("HerdrPath = %q", cfg.HerdrPath)

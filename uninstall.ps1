@@ -24,6 +24,7 @@ $result = @{
     removedLinks = @()
     restored     = @()
     removedTask  = $false
+    removedFont  = $false
     warnings     = @()
 }
 
@@ -115,6 +116,19 @@ if ($RestoreBackups) {
             Write-Log "uninstall: opencode.jsonc aus Backup wiederhergestellt." -Level Success -LogFile $logFile
         }
     }
+}
+
+# Nerd Font entfernen (pro Benutzer installiert, kein winget-Artefakt).
+$fontRemoved = Uninstall-AidFont -DryRun:$DryRun
+$result.removedFont = [bool]$fontRemoved
+if ($fontRemoved) {
+    if ($DryRun) {
+        Write-Log 'uninstall: [DryRun] CaskaydiaCove Nerd Font würde entfernt.' -Level Info -LogFile $logFile
+    } else {
+        Write-Log 'uninstall: CaskaydiaCove Nerd Font entfernt.' -Level Success -LogFile $logFile
+    }
+} else {
+    Write-Log 'uninstall: CaskaydiaCove Nerd Font nicht vorhanden.' -Level Info -LogFile $logFile
 }
 
 $result.finishedAt = (Get-Date).ToUniversalTime().ToString('o')

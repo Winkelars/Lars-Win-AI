@@ -6,8 +6,8 @@
 #   Herdr kennt KEIN explizites Alpha/`transparent`-Token. Die Default-Config
 #   dokumentiert für Farbtokens nur: hex (#rrggbb), named colors, rgb(r,g,b)
 #   oder `panel_bg = "reset"`. "reset" lässt das Panel den Standard-Hintergrund
-#   des äußeren Terminals verwenden; in Alacritty (opacity = 0.90, bg #000000)
-#   ergibt das den gewünschten durchscheinenden Panel-Hintergrund.
+#   des äußeren Terminals verwenden; in WezTerm (window_background_opacity =
+#   0.90, bg #000000) ergibt das den gewünschten durchscheinenden Panel-Hintergrund.
 #   Deshalb: Built-in-Theme "terminal" (erbt Terminalfarben) + panel_bg="reset".
 #   Details siehe config/herdr/README.md.
 
@@ -16,11 +16,12 @@ onboarding = false
 
 [theme]
 # Built-in-Theme, das die Farben des äußeren Terminals übernimmt.
-name = "terminal"
+name = "tokyo-night"
 
+auto_switch = false
 [theme.custom]
 # Panel-Hintergrund auf den Terminal-Default zurücksetzen → transparent
-# gegenüber Alacritty (siehe Annahme oben).
+# gegenüber WezTerm (siehe Annahme oben).
 panel_bg = "reset"
 
 [terminal]

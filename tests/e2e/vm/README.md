@@ -49,7 +49,7 @@ Exitcode `0` = E2E grün.
 
 Screenshots zeigen den **Konsolenbildschirm**. Ist die VM gesperrt (Lock-Screen),
 siehst du den Lock-Screen; nach dem Login den Desktop. Für UI-Prüfungen der
-Anwendung (Alacritty/opencode) vorher in der VM anmelden.
+Anwendung (WezTerm/opencode) vorher in der VM anmelden.
 
 ## Technik
 

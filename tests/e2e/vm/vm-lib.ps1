@@ -26,7 +26,11 @@ function Start-LabVmAndWait {
     while ((Get-Date) -lt $deadline) {
         $state = (Get-VM -Id $Vm.Id).State
         if ($state -eq 'Running') {
-            $hb = Get-VMIntegrationService -VM $Vm -Name 'Heartbeat' -ErrorAction SilentlyContinue
+            # Integrationsdienst-Namen sind host-lokalisiert (z. B. "Takt" statt
+            # "Heartbeat") - deshalb ueber die stabile Heartbeat-GUID selektieren.
+            $hb = Get-VMIntegrationService -VM $Vm -ErrorAction SilentlyContinue |
+                Where-Object { $_.Id -like '*84EAAE65-2F2E-45F5-9BB5-0E857DC8EB47*' } |
+                Select-Object -First 1
             if ($hb -and "$($hb.PrimaryStatusDescription)" -match 'OK') { return }
         }
         Start-Sleep -Seconds 3

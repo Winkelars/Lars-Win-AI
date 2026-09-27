@@ -19,16 +19,17 @@
     $messages = @()
     $changed = $false
 
+    # Der Nerd Font wird nicht hier installiert, sondern im eigenen
+    # 'font'-Component (GitHub-Release statt winget-font-Quelle).
     $packages = @(
-        @{ Id = 'ryanoasis.CaskaydiaCove'; Name = 'CaskaydiaCove Nerd Font' },
-        @{ Id = 'Alacritty.Alacritty';     Name = 'Alacritty' },
+        @{ Id = 'wez.wezterm';             Name = 'WezTerm' },
         @{ Id = 'Herdr.Herdr.Preview';     Name = 'Herdr (Preview)' },
         @{ Id = 'Neovim.Neovim';           Name = 'Neovim' }
     )
 
     $failed = @()
     foreach ($package in $packages) {
-        $outcome = Invoke-Winget -Id $package.Id -Name $package.Name -DryRun:$Context.DryRun -SkipDeps:$Context.SkipDeps
+        $outcome = Invoke-Winget -Id $package.Id -Name $package.Name -Source $package.Source -DryRun:$Context.DryRun -SkipDeps:$Context.SkipDeps
         if (-not $outcome.Ok) {
             $failed += $package.Id
             $messages += "winget-Installation fehlgeschlagen: $($package.Id)"

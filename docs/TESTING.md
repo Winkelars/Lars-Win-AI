@@ -23,7 +23,7 @@ werden.
 | Go Build | `go build -ldflags "-H=windowsgui" -o bin/aid.exe ./cmd/aid` | Windows-Binary ohne Konsole. |
 | PSScriptAnalyzer | `Invoke-ScriptAnalyzer` über `install.ps1`, `uninstall.ps1`, `scripts/**`, `tests/**` | PowerShell-Qualität. Fehler = rot, Warnungen = Annotation. |
 | Pester | `Invoke-Pester -Path tests/pester` | Installer-Helfer (Junction/Symlink, JSONC-Merge, Backup). |
-| Config-Validierung | `tests/ci/validate-configs.ps1` | JSON (`manifest.json`, Theme), TOML (Alacritty, Herdr), Lua-Syntax (LazyVim), `install.ps1 -DryRun`. |
+| Config-Validierung | `tests/ci/validate-configs.ps1` | JSON (`manifest.json`, Theme), TOML (Herdr), Lua-Syntax (LazyVim + WezTerm), `install.ps1 -DryRun`. |
 
 Details der Config-Validierung:
 
@@ -32,10 +32,11 @@ Details der Config-Validierung:
   `release.asset == aid.exe`). opencode-Themes werden geparst; beim Theme
   `ai-transparent.json` müssen `background`, `backgroundPanel`,
   `backgroundElement` und `backgroundMenu` den Wert `"none"` haben.
-- **TOML:** `config/alacritty/alacritty.toml` und `config/herdr/config.toml`
-  werden mit dem Node-Paket `toml` geparst (siehe
+- **TOML:** `config/herdr/config.toml`
+  wird mit dem Node-Paket `toml` geparst (siehe
   `tests/ci/validate-toml.js`).
-- **Lua:** Jede `*.lua` unter `config/nvim/**` wird per
+- **Lua:** Jede `*.lua` unter `config/nvim/**` sowie
+  `config/wezterm/wezterm.lua` wird per
   `nvim --headless -u NONE -c "lua … loadfile(...)"` auf Syntax geprüft.
 - **DryRun:** Existiert `install.ps1`, läuft `install.ps1 -DryRun -Yes` und darf
   **kein** `install.log` schreiben.

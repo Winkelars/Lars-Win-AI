@@ -48,7 +48,7 @@ Nach `install.ps1 -Yes` (und Logon) auf dem Zielsystem:
 - **Autostart:** Nach Logon läuft `aid.exe` (Task Scheduler). Prüfen:
   `Get-Process aid`.
 - **Alt + ^ durch alle 4 Zustände:**
-  1. kein Fenster → Alacritty + `herdr` starten, Monitor 2, opencode-Pane
+  1. kein Fenster → WezTerm + `herdr` starten, Monitor 2, opencode-Pane
      fokussiert.
   2. Fenster da, nicht Vordergrund → nach vorn holen + opencode-Pane.
   3. Fenster Vordergrund, opencode-Pane **nicht** fokussiert → nur Pane
@@ -58,7 +58,7 @@ Nach `install.ps1 -Yes` (und Logon) auf dem Zielsystem:
   Start, Retry laut `herdr_retry_*`.
 - **Keine opencode-Session:** Alt+^ startet `opencode --auto` in einer neuen
   Pane (`pane split` + `agent start`).
-- **Alacritty:** randlos, CaskaydiaCove Nerd Font, Transparenz akzeptabel
+- **WezTerm:** randlos, CaskaydiaCove Nerd Font, Transparenz akzeptabel
   (Fallback: deckend), `Ctrl+Shift+Space` = Vi-Mode/Copy.
 - **LazyVim:** Markdown ohne Diagnostics, `<leader>ud` toggelt;
   `:set spelllang?` → `en,de`.

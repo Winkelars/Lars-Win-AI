@@ -8,9 +8,9 @@ Diese Datei dokumentiert Annahmen und Validierung der Herdr-Konfiguration
 - `onboarding = false` — kein Erststart-Onboarding.
 - `[ui] host_cursor = "native"` — nativer Host-Cursor (Bestandswert, beibehalten).
 - `[ui] window_title = "AI-Assistant"` — stabiler OS-Fenstertitel, über den der
-  Go-Daemon das Alacritty-/Herdr-Fenster findet.
+  Go-Daemon das WezTerm-/Herdr-Fenster findet.
 - `[theme] name = "terminal"` + `[theme.custom] panel_bg = "reset"` — transparenter
-  Panel-Hintergrund passend zu Alacritty (siehe unten).
+  Panel-Hintergrund passend zu WezTerm (siehe unten).
 
 ## Getroffene Annahme: transparenter Panel-Hintergrund
 
@@ -27,7 +27,7 @@ TOML-Struktur, nicht die Farbwerte.
 
 **Gewählter, konservativer Weg:** Built-in-Theme `terminal` (erbt die Farben des
 äußeren Terminals) plus `panel_bg = "reset"`. `reset` setzt den Panel-Hintergrund
-auf den Terminal-Standard zurück; im äußeren Alacritty mit `opacity = 0.90` und
+auf den Terminal-Standard zurück; im äußeren WezTerm mit `window_background_opacity = 0.90` und
 `background = "#000000"` scheint dadurch der Desktop durch das Panel. Das ist die
 nächstliegende, garantiert gültige Umsetzung von „transparentem Panel-BG“.
 

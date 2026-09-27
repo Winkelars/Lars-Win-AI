@@ -47,13 +47,13 @@ function Get-DaemonConfig {
     )
     $daemon = @{
         window_title       = 'AI-Assistant'
-        process_name       = 'alacritty.exe'
+        process_name       = 'wezterm-gui.exe'
         monitor            = 2
         agent_name         = 'opencode'
         agent_kind         = 'opencode'
         agent_args         = @('--auto')
-        alacritty_path     = 'C:\Program Files\Alacritty\alacritty.exe'
-        alacritty_config   = (Join-Path -Path $RepositoryRoot -ChildPath 'config\alacritty\alacritty.toml')
+        wezterm_path       = 'C:\Program Files\WezTerm\wezterm.exe'
+        wezterm_config     = (Join-Path -Path $RepositoryRoot -ChildPath 'config\wezterm\wezterm.lua')
         herdr_path         = 'herdr'
         pane_state_file    = '%APPDATA%\Lars-Win-AI\pane-state.json'
         hotkey             = @{ scan_code = 41; alt_only = $true; exclude_altgr = $true }

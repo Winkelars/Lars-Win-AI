@@ -4,7 +4,7 @@ Dream-Workflow für AI-Assistenten unter Windows — kontrolliert installierbar,
 reproduzierbar und ohne AutoHotkey-Abhängigkeit.
 
 Ein globaler Hotkey **`Alt + ^`** öffnet, fokussiert oder minimiert ein
-randloses Alacritty-Fenster, in dem **Herdr** persistente Panes verwaltet. Der
+randloses WezTerm-Fenster, in dem **Herdr** persistente Panes verwaltet. Der
 Hotkey springt dabei gezielt auf das designierte **opencode**-Panel. Als Editor
 dient **Neovim (LazyVim)**, die opencode-Sitzung startet standardmäßig mit
 `--auto`.
@@ -20,8 +20,8 @@ eingefrorenen Schnittstellen in [`docs/CONTRACTS.md`](docs/CONTRACTS.md).
 - **git** (für den Clone des Repos).
 - **Entwicklermodus oder Administratorrechte** *nur* für echte Datei-Symlinks.
   Das Repo bevorzugt Junctions (Ordner), die **kein** Admin benötigen; der
-  einzige File-Symlink (`herdr/config.toml`) fällt automatisch auf Kopieren
-  zurück, wenn Developer Mode/Admin fehlt. Hinweis: Developer Mode ist unter
+  File-Symlinks (`herdr/config.toml`, `wezterm.lua`) fallen automatisch auf
+  Kopieren zurück, wenn Developer Mode/Admin fehlt. Hinweis: Developer Mode ist unter
   *Einstellungen → System → Entwickler* aktivierbar.
 - Optional: **PowerShell 7** (`pwsh`) — die Skripte laufen auch mit Windows
   PowerShell 5.1.
@@ -51,8 +51,8 @@ Beispiele:
 # Unbeaufsichtigter Komplett-Install
 pwsh -NoProfile -File .\install.ps1 -Yes
 
-# Nur Alacritty + Herdr-Configs, ohne winget
-pwsh -NoProfile -File .\install.ps1 -Yes -SkipDeps -Components alacritty,herdr
+# Nur WezTerm + Herdr-Configs, ohne winget
+pwsh -NoProfile -File .\install.ps1 -Yes -SkipDeps -Components wezterm,herdr
 
 # Trockenlauf (ändert nichts)
 pwsh -NoProfile -File .\install.ps1 -DryRun -Yes
@@ -78,8 +78,9 @@ Abhängigkeiten sind dort fixiert.
 
 | ID | Funktion | Reihenfolge | Voraussetzung | Default | Beschreibung |
 |---|---|---|---|---|---|
-| `deps` | `Install-Deps` | 10 | – | ja | winget: Herdr, Alacritty, Neovim, CaskaydiaCove Nerd Font. |
-| `alacritty` | `Install-Alacritty` | 20 | `deps` | ja | Alacritty-Junction (`%APPDATA%\alacritty`) und Assets. |
+| `deps` | `Install-Deps` | 10 | – | ja | winget: Herdr, WezTerm, Neovim. |
+| `font` | `Install-Font` | 15 | – | ja | CaskaydiaCove Nerd Font aus dem Nerd-Fonts-Release (pro Benutzer, ohne winget). |
+| `wezterm` | `Install-Wezterm` | 20 | `deps` | ja | WezTerm-Config (`~/.wezterm.lua`) platzieren. |
 | `herdr` | `Install-Herdr` | 30 | `deps` | ja | Herdr-Config verlinken, opencode-Integration + Skill installieren. |
 | `neovim` | `Install-Neovim` | 40 | `deps` | ja | LazyVim-Config als Junction (`%LOCALAPPDATA%\nvim`), bestehendes Repo vorher sichern. |
 | `opencode` | `Install-Opencode` | 50 | `deps` | ja | Theme/Skill verlinken, MCP + Theme in `opencode.jsonc` mergen, `EDITOR`/`VISUAL` setzen. |
@@ -97,7 +98,7 @@ startet über den Task Scheduler „At log on“ automatisch.
 
 `Alt + ^` verhält sich je nach Zustand:
 
-1. **Fenster existiert nicht** → Alacritty + `herdr` starten, auf Monitor 2
+1. **Fenster existiert nicht** → WezTerm + `herdr` starten, auf Monitor 2
    maximieren/fokussieren, opencode-Pane fokussieren (ggf. starten).
 2. **Fenster existiert, nicht im Vordergrund** → nach vorn holen (ggf. auf
    Monitor 2 ziehen), opencode-Pane fokussieren.
@@ -113,22 +114,22 @@ State-Datei genutzt bzw. per `herdr pane split` erzeugt und
 
 ### Fenster ist nicht transparent (GPU/Treiber)
 
-Alacritty-Transparenz unter Windows 11 hängt von GPU und Treiber ab. Zeigt das
-Fenster keine Transparenz (`supports_transparency: false`), ist der Fallback
-vollständig deckend — nur das opencode-Theme bleibt transparent. Prüfen:
+WezTerm-Transparenz unter Windows 11 hängt von GPU und Treiber ab. Zeigt das
+Fenster keine Transparenz, ist der Fallback vollständig deckend — nur das
+opencode-Theme bleibt transparent. Prüfen:
 
 ```powershell
-alacritty --version
-# Alacritty >= 0.13 erwartet; GPU-Treiber aktualisieren
+wezterm --version
+# WezTerm-Treiber/GPU aktualisieren
 ```
 
-Der zentrale Transparenzwert liegt in `config/alacritty/alacritty.toml`
-(`[window] opacity`).
+Der zentrale Transparenzwert liegt in `config/wezterm/wezterm.lua`
+(`window_background_opacity`).
 
 ### Symlink-/Junction-Fehler
 
 - Ordner werden als **Junctions** verlinkt und brauchen kein Admin.
-- Nur `%APPDATA%\herdr\config.toml` ist ein **File-Symlink**; er benötigt
+- Nur `%APPDATA%\herdr\config.toml` und `%USERPROFILE%\.wezterm.lua` sind **File-Symlinks**; sie benötigen
   Developer Mode oder Admin. Fehlt beides, fällt der Installer auf **Kopieren**
   zurück.
 - Bestehende Ziele werden vorher gesichert (`*.bak.<ts>`).

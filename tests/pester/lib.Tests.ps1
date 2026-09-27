@@ -26,10 +26,10 @@ Describe 'lib.ps1 helpers' {
 
     Context 'Resolve-ManifestPath' {
         It 'expands environment variables and normalizes slashes' {
-            $resolved = Resolve-ManifestPath -Path '%APPDATA%/alacritty'
+            $resolved = Resolve-ManifestPath -Path '%USERPROFILE%/.wezterm.lua'
             ([string]::IsNullOrEmpty($resolved)) | Should -Be $false
             $resolved | Should -Be ($resolved -replace '/', '\')
-            ($resolved.StartsWith($env:APPDATA)) | Should -Be $true
+            ($resolved.StartsWith($env:USERPROFILE)) | Should -Be $true
         }
     }
 

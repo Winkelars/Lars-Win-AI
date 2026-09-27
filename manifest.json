@@ -2,7 +2,7 @@
   "$schema": "./manifest.schema.json",
   "name": "Lars-Win-AI",
   "version": "0.1.0",
-  "description": "Kontrollierte Installation des Windows-Workflows um einen AI-Assistenten (Herdr + Alacritty + opencode + LazyVim) ohne AutoHotkey.",
+  "description": "Kontrollierte Installation des Windows-Workflows um einen AI-Assistenten (Herdr + WezTerm + opencode + LazyVim) ohne AutoHotkey.",
   "components": [
     {
       "id": "deps",
@@ -11,16 +11,25 @@
       "order": 10,
       "default": true,
       "requires": [],
-      "description": "winget-Abhängigkeiten (Herdr, Alacritty, Neovim, CaskaydiaCove Nerd Font)."
+      "description": "winget-Abhängigkeiten (Herdr, WezTerm, Neovim)."
     },
     {
-      "id": "alacritty",
-      "function": "Install-Alacritty",
-      "script": "scripts/components/alacritty.ps1",
+      "id": "font",
+      "function": "Install-Font",
+      "script": "scripts/components/font.ps1",
+      "order": 15,
+      "default": true,
+      "requires": [],
+      "description": "CaskaydiaCove Nerd Font aus dem Nerd-Fonts-Release installieren (pro Benutzer, ohne winget)."
+    },
+    {
+      "id": "wezterm",
+      "function": "Install-Wezterm",
+      "script": "scripts/components/wezterm.ps1",
       "order": 20,
       "default": true,
       "requires": ["deps"],
-      "description": "Alacritty-Junction und Assets platzieren."
+      "description": "WezTerm-Config (~/.wezterm.lua) platzieren."
     },
     {
       "id": "herdr",
@@ -61,13 +70,13 @@
   ],
   "symlinks": [
     {
-      "id": "alacritty-config",
-      "kind": "junction",
-      "source": "config/alacritty",
-      "target": "%APPDATA%/alacritty",
-      "fallback": "error",
+      "id": "wezterm-config",
+      "kind": "symlink",
+      "source": "config/wezterm/wezterm.lua",
+      "target": "%USERPROFILE%/.wezterm.lua",
+      "fallback": "copy",
       "backup": true,
-      "component": "alacritty"
+      "component": "wezterm"
     },
     {
       "id": "nvim-config",

@@ -24,7 +24,7 @@ Der Installer (WS-I) übernimmt die Assets wie folgt. Details sind in
 - Das Theme setzt `background`, `backgroundPanel`, `backgroundElement` und
   `backgroundMenu` auf `"none"`; weitere Hintergrund-Felder (Diff-Flächen,
   `selectedListItemText`) ebenfalls, damit die Terminal-Transparenz von
-  Alacritty durchscheint.
+  WezTerm durchscheint.
 
 ### MCP-Merge
 

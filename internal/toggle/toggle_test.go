@@ -50,7 +50,7 @@ func swapStartProcess(fn func(*exec.Cmd) error) func() {
 
 func TestRunActionForeground(t *testing.T) {
 	cfg := testConfig(t)
-	w := window.NewFakeWindow("AI-Assistant", "alacritty.exe")
+	w := window.NewFakeWindow("AI-Assistant", "wezterm-gui.exe")
 	w.Foreground = false
 	w.Minimized = true
 	mgr := window.NewFakeManager(w)
@@ -80,7 +80,7 @@ func TestRunActionForeground(t *testing.T) {
 
 func TestRunActionFocusPane(t *testing.T) {
 	cfg := testConfig(t)
-	w := window.NewFakeWindow("AI-Assistant", "alacritty.exe")
+	w := window.NewFakeWindow("AI-Assistant", "wezterm-gui.exe")
 	w.Foreground = true
 	mgr := window.NewFakeManager(w)
 	stub := &herdr.StubClient{
@@ -138,7 +138,7 @@ func TestFocusOpencodeSequence(t *testing.T) {
 
 func TestRunActionMinimize(t *testing.T) {
 	cfg := testConfig(t)
-	w := window.NewFakeWindow("AI-Assistant", "alacritty.exe")
+	w := window.NewFakeWindow("AI-Assistant", "wezterm-gui.exe")
 	w.Foreground = true
 	mgr := window.NewFakeManager(w)
 	stub := &herdr.StubClient{
@@ -163,7 +163,7 @@ func TestRunActionMinimize(t *testing.T) {
 
 func TestRunActionStart(t *testing.T) {
 	cfg := testConfig(t)
-	frame := window.NewFakeWindow("AI-Assistant", "alacritty.exe")
+	frame := window.NewFakeWindow("AI-Assistant", "wezterm-gui.exe")
 
 	lookups := 0
 	mgr := &window.FakeManager{
@@ -191,8 +191,14 @@ func TestRunActionStart(t *testing.T) {
 	if act != ActionStart {
 		t.Fatalf("action = %v", act)
 	}
-	if len(frame.MoveCalls) != 1 || frame.MoveCalls[0] != 2 || frame.FocusCalls != 1 {
+	// settleAndMaximize wendet MoveAndMaximize mehrfach an (Start-Race).
+	if len(frame.MoveCalls) < 1 || frame.FocusCalls != 1 {
 		t.Errorf("Fensteraktionen falsch: %+v", frame)
+	}
+	for _, monitor := range frame.MoveCalls {
+		if monitor != 2 {
+			t.Errorf("MoveAndMaximize ohne Monitor 2: %+v", frame.MoveCalls)
+		}
 	}
 	calls := stub.Calls()
 	if strings.Contains(strings.Join(calls, " "), "pane split") {

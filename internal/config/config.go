@@ -27,8 +27,8 @@ type Config struct {
 	AgentName        string   `json:"agent_name"`
 	AgentKind        string   `json:"agent_kind"`
 	AgentArgs        []string `json:"agent_args"`
-	AlacrittyPath    string   `json:"alacritty_path"`
-	AlacrittyConfig  string   `json:"alacritty_config"`
+	WeztermPath      string   `json:"wezterm_path"`
+	WeztermConfig    string   `json:"wezterm_config"`
 	HerdrPath        string   `json:"herdr_path"`
 	PaneStateFile    string   `json:"pane_state_file"`
 	Hotkey           Hotkey   `json:"hotkey"`
@@ -45,13 +45,13 @@ type Config struct {
 func Defaults() *Config {
 	return &Config{
 		WindowTitle:      "AI-Assistant",
-		ProcessName:      "alacritty.exe",
+		ProcessName:      "wezterm-gui.exe",
 		Monitor:          2,
 		AgentName:        "opencode",
 		AgentKind:        "opencode",
 		AgentArgs:        []string{"--auto"},
-		AlacrittyPath:    `C:\Program Files\Alacritty\alacritty.exe`,
-		AlacrittyConfig:  "",
+		WeztermPath:      `C:\Program Files\WezTerm\wezterm.exe`,
+		WeztermConfig:    "",
 		HerdrPath:        "herdr",
 		PaneStateFile:    `%APPDATA%\Lars-Win-AI\pane-state.json`,
 		Hotkey:           Hotkey{ScanCode: 41, AltOnly: true, ExcludeAltGr: true},
@@ -151,11 +151,11 @@ func applyEnv(c *Config) {
 	if v := os.Getenv("AID_AGENT_ARGS"); strings.TrimSpace(v) != "" {
 		c.AgentArgs = strings.Fields(v)
 	}
-	if v := os.Getenv("AID_ALACRITTY_PATH"); v != "" {
-		c.AlacrittyPath = v
+	if v := os.Getenv("AID_WEZTERM_PATH"); v != "" {
+		c.WeztermPath = v
 	}
-	if v := os.Getenv("AID_ALACRITTY_CONFIG"); v != "" {
-		c.AlacrittyConfig = v
+	if v := os.Getenv("AID_WEZTERM_CONFIG"); v != "" {
+		c.WeztermConfig = v
 	}
 	if v := os.Getenv("AID_HERDR_PATH"); v != "" {
 		c.HerdrPath = v

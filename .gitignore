@@ -16,7 +16,11 @@ go.work.sum
 
 # PowerShell
 install.log
+uninstall.log
 *.bak
+
+# E2E artifacts
+tests/e2e/vm/out/
 
 # Editor / OS
 .vscode/

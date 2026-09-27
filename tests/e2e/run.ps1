@@ -23,6 +23,7 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $installScript = Join-Path -Path $RepoRoot -ChildPath 'install.ps1'
 $uninstallScript = Join-Path -Path $RepoRoot -ChildPath 'uninstall.ps1'
+. (Join-Path -Path $RepoRoot -ChildPath 'scripts\lib.ps1')
 
 $script:Assertions = @()
 $script:Failures = 0
@@ -46,11 +47,11 @@ function Add-Assertion {
 function Invoke-Installer {
     param([string]$ScriptPath)
     Write-Host ("=== " + $ScriptPath) -ForegroundColor Cyan
-    $output = & powershell -NoProfile -ExecutionPolicy Bypass -File $ScriptPath -Yes 2>&1
+    # Zeilenweise streamen (nicht erst sammeln), damit der VM-Treiber den
+    # Fortschritt waehrend der Ausfuehrung anzeigen kann.
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $ScriptPath -Yes 2>&1 | ForEach-Object { Write-Host $_ }
     $code = $LASTEXITCODE
-    $output | ForEach-Object { Write-Host $_ }
     Add-Assertion -Name ("Exitcode 0 fuer " + (Split-Path -Leaf $ScriptPath)) -Condition ($code -eq 0) -Detail ("exit=" + $code)
-    return $output
 }
 
 function Get-RepoManifest {
@@ -93,9 +94,11 @@ function Test-InstallState {
     Add-Assertion -Name 'Herdr-Skill installiert' -Condition (Test-Path -LiteralPath $skill) -Detail $skill
 
     $wingetList = (& winget list --accept-source-agreements 2>&1 | Out-String)
-    foreach ($packageId in @('ryanoasis.CaskaydiaCove', 'Alacritty.Alacritty', 'Herdr.Herdr.Preview', 'Neovim.Neovim')) {
+    foreach ($packageId in @('wez.wezterm', 'Herdr.Herdr.Preview', 'Neovim.Neovim')) {
         Add-Assertion -Name ("winget-Paket vorhanden: " + $packageId) -Condition ($wingetList -match [regex]::Escape($packageId))
     }
+
+    Add-Assertion -Name 'Nerd Font installiert (Dateien + HKCU)' -Condition (Test-AidFontInstalled)
 
     $exe = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Lars-Win-AI\aid.exe'
     Add-Assertion -Name 'aid.exe vorhanden' -Condition (Test-Path -LiteralPath $exe) -Detail $exe
@@ -108,9 +111,10 @@ function Assert-Json {
     param([string]$Name, [string]$Text)
     $ok = $true
     try {
-        $stripped = [regex]::Replace($Text, '(?s)/\*.*?\*/', '')
-        $stripped = [regex]::Replace($stripped, '(?m)//[^\r\n]*', '')
-        $null = $stripped | ConvertFrom-Json
+        # String-bewusster JSONC-Parser aus lib.ps1 (die naive Regex-Variante
+        # zerstoert URLs wie "https://...", weil sie "//" im String als
+        # Kommentar deutet).
+        $null = ConvertFrom-Jsonc -Text $Text
     } catch {
         $ok = $false
     }
@@ -128,6 +132,7 @@ function Test-UninstallState {
     }
     $task = Get-ScheduledTask -TaskName 'aid' -TaskPath '\Lars-Win-AI\' -ErrorAction SilentlyContinue
     Add-Assertion -Name 'Scheduled Task entfernt' -Condition ($null -eq $task)
+    Add-Assertion -Name 'Nerd Font entfernt' -Condition (-not (Test-AidFontInstalled))
 }
 
 Write-Host 'Lars-Win-AI Layer-2 E2E' -ForegroundColor Cyan
@@ -157,9 +162,8 @@ if ($SkipUninstall) {
     Write-Host 'Uninstall-Schritt uebersprungen (-SkipUninstall).' -ForegroundColor Yellow
 } else {
     Write-Host ("=== " + $uninstallScript) -ForegroundColor Cyan
-    $uninstallOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $uninstallScript -RestoreBackups 2>&1
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $uninstallScript -RestoreBackups 2>&1 | ForEach-Object { Write-Host $_ }
     $uninstallCode = $LASTEXITCODE
-    $uninstallOutput | ForEach-Object { Write-Host $_ }
     Add-Assertion -Name 'Uninstall Exitcode 0' -Condition ($uninstallCode -eq 0) -Detail ("exit=" + $uninstallCode)
     Test-UninstallState -Manifest $manifest
 }

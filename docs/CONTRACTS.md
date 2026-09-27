@@ -27,13 +27,14 @@ Lars-Win-AI/
 │  ├─ lib.ps1                     # WS-I
 │  └─ components/
 │     ├─ deps.ps1                 # WS-I
-│     ├─ alacritty.ps1            # WS-I
+│     ├─ font.ps1                 # WS-I
+│     ├─ wezterm.ps1              # WS-I
 │     ├─ herdr.ps1                # WS-I
 │     ├─ neovim.ps1               # WS-I
 │     ├─ opencode.ps1             # WS-I
 │     └─ daemon.ps1               # WS-I
 ├─ config/
-│  ├─ alacritty/alacritty.toml    # WS-A
+│  ├─ wezterm/wezterm.lua         # WS-A
 │  ├─ herdr/config.toml           # WS-A
 │  ├─ nvim/**                     # WS-N
 │  └─ opencode/
@@ -57,7 +58,7 @@ Lars-Win-AI/
 | Workstream | Eigene Pfade |
 |---|---|
 | WS-D | `cmd/**`, `internal/**`, `go.mod`, `go.sum` |
-| WS-A | `config/alacritty/**`, `config/herdr/**` |
+| WS-A | `config/wezterm/**`, `config/herdr/**` |
 | WS-N | `config/nvim/**` |
 | WS-O | `config/opencode/**` |
 | WS-I | `install.ps1`, `uninstall.ps1`, `scripts/**`, `tests/pester/**`, `tests/e2e/**` |
@@ -86,13 +87,13 @@ Vollständiges Schema: `manifest.schema.json`. Struktur:
   ],
   "symlinks": [
     {
-      "id": "alacritty-config",
-      "kind": "junction",               // "junction" | "symlink"
-      "source": "config/alacritty",     // relativ zum Repo-Root
-      "target": "%APPDATA%/alacritty",  // %VAR% wird expandiert; / ist ok
-      "fallback": "copy",               // "copy" | "error"  (bei symlink)
-      "backup": true,                   // vorhandenes Ziel sichern → *.bak.<ts>
-      "component": "alacritty"          // zugehörige Komponente
+      "id": "wezterm-config",
+      "kind": "symlink",                        // "junction" | "symlink"
+      "source": "config/wezterm/wezterm.lua",   // relativ zum Repo-Root
+      "target": "%USERPROFILE%/.wezterm.lua",   // %VAR% wird expandiert; / ist ok
+      "fallback": "copy",                       // "copy" | "error"  (bei symlink)
+      "backup": true,                           // vorhandenes Ziel sichern → *.bak.<ts>
+      "component": "wezterm"                    // zugehörige Komponente
     }
   ],
   "env": {
@@ -114,17 +115,23 @@ Vollständiges Schema: `manifest.schema.json`. Struktur:
 | id | function | order | requires | default |
 |---|---|---|---|---|
 | deps | Install-Deps | 10 | – | true |
-| alacritty | Install-Alacritty | 20 | deps | true |
+| font | Install-Font | 15 | – | true |
+| wezterm | Install-Wezterm | 20 | deps | true |
 | herdr | Install-Herdr | 30 | deps | true |
 | neovim | Install-Neovim | 40 | deps | true |
 | opencode | Install-Opencode | 50 | deps | true |
 | daemon | Install-Daemon | 60 | – | true |
 
+> `font` laedt die gepinnte Nerd-Fonts-Release-ZIP (CaskaydiaCove) von GitHub und
+> registriert die Schnitte **pro Benutzer** unter
+> `%LOCALAPPDATA%\Microsoft\Windows\Fonts` + `HKCU\...\Fonts` (kein winget, kein
+> Admin). `uninstall.ps1` entfernt sie wieder.
+
 **Symlink-/Junction-Zieltabelle (fix):**
 
 | id | kind | source | target | fallback | backup |
 |---|---|---|---|---|---|
-| alacritty-config | junction | `config/alacritty` | `%APPDATA%/alacritty` | – | true |
+| wezterm-config | symlink | `config/wezterm/wezterm.lua` | `%USERPROFILE%/.wezterm.lua` | copy | true |
 | nvim-config | junction | `config/nvim` | `%LOCALAPPDATA%/nvim` | – | true |
 | herdr-config | symlink | `config/herdr/config.toml` | `%APPDATA%/herdr/config.toml` | copy | true |
 | opencode-themes | junction | `config/opencode/themes` | `%USERPROFILE%/.config/opencode/themes` | – | true |
@@ -232,13 +239,13 @@ Env: `AID_CONFIG`). Alle Felder optional; Defaults greifen.
 ```jsonc
 {
   "window_title": "AI-Assistant",         // Env AID_WINDOW_TITLE
-  "process_name": "alacritty.exe",
+  "process_name": "wezterm-gui.exe",
   "monitor": 2,                           // Env AID_MONITOR (1-basiert)
   "agent_name": "opencode",               // Env AID_AGENT_NAME
   "agent_kind": "opencode",               // Env AID_AGENT_KIND
   "agent_args": ["--auto"],               // Env AID_AGENT_ARGS (space-split)
-  "alacritty_path": "C:\\Program Files\\Alacritty\\alacritty.exe",  // Env AID_ALACRITTY_PATH
-  "alacritty_config": "<repo>/config/alacritty/alacritty.toml",      // Env AID_ALACRITTY_CONFIG
+  "wezterm_path": "C:\\Program Files\\WezTerm\\wezterm.exe",  // Env AID_WEZTERM_PATH
+  "wezterm_config": "<repo>/config/wezterm/wezterm.lua",      // Env AID_WEZTERM_CONFIG
   "herdr_path": "herdr",                  // Env AID_HERDR_PATH (testbar/stubbar)
   "pane_state_file": "%APPDATA%\\Lars-Win-AI\\pane-state.json",
   "hotkey": { "scan_code": 41, "alt_only": true, "exclude_altgr": true },
@@ -273,7 +280,7 @@ aid help | --help
 
 **Env-Variablen (fix, vom Installer gesetzt):** `AID_WINDOW_TITLE`,
 `AID_MONITOR`, `AID_AGENT_NAME`, `AID_AGENT_KIND`, `AID_AGENT_ARGS`,
-`AID_ALACRITTY_PATH`, `AID_HERDR_PATH`.
+`AID_WEZTERM_PATH`, `AID_HERDR_PATH`.
 
 ---
 
@@ -353,7 +360,9 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
 >
 > `MoveAndMaximize` legt das Fenster randlos ueber den **Arbeitsbereich** des
 > Zielmonitors (windowed, ausgebreitet; Taskleiste bleibt sichtbar) — kein
-> Vollbild, und ist idempotent (resized nur bei abweichender Groesse).
+> Vollbild, und ist idempotent (resized nur bei abweichender Groesse). Beim Start
+> wendet der Daemon `MoveAndMaximize` mehrfach an (`settleAndMaximize`), weil
+> WezTerm seine Fenstergeometrie kurz nach dem Erscheinen selbst setzt.
 >
 > `ActionMinimize` **versteckt** das Fenster (`SW_HIDE`), es minimiert NICHT:
 > `SW_MINIMIZE` setzt die Client-Groesse auf 0 → ConPTY/opencode-Session bricht
@@ -384,23 +393,25 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
 
 ---
 
-## 7. Alacritty-Asset-Vertrag (WS-A)
+## 7. WezTerm-Asset-Vertrag (WS-A)
 
-- Datei: `config/alacritty/alacritty.toml`, Alacritty ≥ 0.13 TOML-Format.
+- Datei: `config/wezterm/wezterm.lua` (Lua, WezTerm ≥ 20240203).
 - Pflichtwerte:
-  - `[window] decorations = "None"`, `opacity = 0.90`, `dynamic_title = true`,
-    `title = "AI-Assistant"`, `startup_mode = "Windowed"`, `padding = { x = 8, y = 8 }`,
-    `dynamic_padding = true`, `blur = false` (Windows-Fallback).
-  - `[font] family = "CaskaydiaCove Nerd Font"`, `size = 15.0`, `normal.family`,
-    `bold/italic/bold_italic` ebenfalls CaskaydiaCove.
-  - `[keyboard] bindings`: `{ key = "Space", mods = "Control|Shift", action = "ToggleViMode" }`.
-  - `[terminal] shell = { program = "herdr" }` — **oder** Start via `-e herdr`;
-    Empfehlung: `-e herdr` beim Start (Installer/Daemon), damit Terminal-Sessions
-    ohne Herdr nicht erzwungen werden.
+  - Fester Fenstertitel via `wezterm.on('format-window-title', ...)` → `"AI-Assistant"`
+    (stabiler OS-Titel, ueber den der Daemon das Fenster findet).
+  - `font = wezterm.font 'CaskaydiaCove Nerd Font'`, `font_size = 15.0`,
+    `harfbuzz_features = { 'calt=1', 'liga=1', 'clig=1' }` (Ligaturen).
+  - `window_background_opacity = 0.90`, `colors = { background = '#000000' }`;
+    `window_decorations = 'RESIZE'` (keine native Titelleiste, Resize-Rand bleibt)
+    und `hide_tab_bar_if_only_one_tab = true`.
+  - `keys`: `{ key = 'Space', mods = 'CTRL|SHIFT', action = act.ActivateCopyMode }`.
+  - `key_tables.copy_mode`/`search_mode`: Vi-artiger Copy-Mode
+    (h/j/k/l, w/b/e, 0/^/$, g/G, Ctrl+b/f/u/d, v/V/Ctrl+V/Alt+V, y, f/F/t/T, /?/n/N).
+  - Startprogramm `herdr` wird beim Start uebergeben (nicht `default_prog`).
 - Startzeile (Daemon/Installer):
-  `alacritty.exe -T "AI-Assistant" --config-file <repo>\config\alacritty\alacritty.toml -e herdr`
-- Hintergrund/Transparenz: `[colors.primary] background = "#000000"` und
-  `[window] opacity`; opencode-Theme liefert Panel-Transparenz.
+  `wezterm.exe [--config-file <repo>\config\wezterm\wezterm.lua] start -- herdr`
+- Hintergrund/Transparenz: `window_background_opacity` + `colors.background`;
+  opencode-Theme liefert Panel-Transparenz.
 
 ## 8. Herdr-Asset-Vertrag (WS-A)
 
@@ -408,7 +419,7 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
   beibehalten, ergänzen:
   - `[ui] window_title = "AI-Assistant"` (stabiles OS-Fenstertitel zum Auffinden).
   - `[terminal] default_shell = "pwsh.exe"` (PowerShell 7 als Pane-Shell).
-  - Theme-Block mit transparentem Panel-Hintergrund passend zu Alacritty
+  - Theme-Block mit transparentem Panel-Hintergrund passend zu WezTerm
     (`opacity`/`transparent`-Optionen, je nach Herdr-Theme-Schema).
 - `Herdr`-Integration: Installer (WS-I) führt
   `herdr integration install opencode` aus; WS-A liefert nur die Config.
@@ -434,10 +445,8 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
   `backgroundElement`, `backgroundMenu` je `"none"`). Aktivierung später via
   `"theme": "ai-transparent"` (Installer-Merge).
 - MCP-Snippet: `config/opencode/mcp.snippet.jsonc` mit **exa** (remote,
-  `https://mcp.exa.ai/mcp`), **playwright** (local,
-  `["cmd","/c","playwright-mcp","--browser","chromium"]`) und **windows**
-  (local, `["uvx","windows-mcp","serve","--exclude-tools","PowerShell,Registry"]`
-  — Windows-Desktop-Automation zum Steuern z. B. des VMConnect-Fensters).
+  `https://mcp.exa.ai/mcp`) und **playwright** (local,
+  `["cmd","/c","playwright-mcp","--browser","chromium"]`).
   Installer merged dies idempotent in `~/.config/opencode/opencode.jsonc`.
 - Skill: `config/opencode/skill/SKILL.md` = Kopie von `herdr --skill`
   (Frontmatter + Body), damit der Installer ihn als
@@ -453,7 +462,7 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
      `scripts/**`, `tests/**`.
   3. Pester: `Invoke-Pester tests/pester`.
   4. Config-Validierung (ohne Systemänderung): JSON (`manifest.json`,
-     Theme), TOML (Alacritty, Herdr), Lua-Syntax (LazyVim), `install.ps1 -DryRun`.
+     Theme), TOML (Herdr), Lua-Syntax (LazyVim + WezTerm), `install.ps1 -DryRun`.
 - `.github/workflows/release.yml` auf Tag `v*`: Build `windows/amd64`
   `-ldflags "-H=windowsgui -s -w"`, Upload `bin/aid.exe` als Release-Asset
   `aid.exe` (Repo `Winkelars/Lars-Win-AI`).

@@ -105,7 +105,7 @@
         @{ Key = 'agent_name';      Name = 'AID_AGENT_NAME' },
         @{ Key = 'agent_kind';      Name = 'AID_AGENT_KIND' },
         @{ Key = 'agent_args';      Name = 'AID_AGENT_ARGS' },
-        @{ Key = 'alacritty_path';  Name = 'AID_ALACRITTY_PATH' },
+        @{ Key = 'wezterm_path';    Name = 'AID_WEZTERM_PATH' },
         @{ Key = 'herdr_path';      Name = 'AID_HERDR_PATH' }
     )
     if (-not $Context.Result.ContainsKey('env') -or $null -eq $Context.Result.env) {
@@ -130,11 +130,29 @@
         Write-Log "daemon: $($mapping.Name)=$value gesetzt." -Level Success -LogFile $Context.LogFile
     }
 
+    # Der Daemon muss elevated laufen (RunLevel Highest), damit WezTerm/
+    # Herdr/opencode elevated starten (ohne UAC-Prompt) und der Daemon deren
+    # Fenster fokussieren darf. Ein bestehender Task mit abweichendem RunLevel
+    # (z. B. von einer aelteren Installation Limited) wird deshalb korrigiert.
     $taskName = 'aid'
     $taskFolder = '\Lars-Win-AI\'
+    $desiredRunLevel = 'Highest'
     $existingTask = Get-ScheduledTask -TaskName $taskName -TaskPath $taskFolder -ErrorAction SilentlyContinue
+    $taskCorrect = $false
     if ($null -ne $existingTask) {
-        Write-Log "daemon: Task $taskFolder$taskName bereits vorhanden." -Level Info -LogFile $Context.LogFile
+        $existingRunLevel = [string]$existingTask.Principal.RunLevel
+        $existingExe = ''
+        if (@($existingTask.Actions).Count -gt 0) { $existingExe = [string]$existingTask.Actions[0].Execute }
+        if ($existingRunLevel -eq $desiredRunLevel -and $existingExe -eq $exePath) {
+            $taskCorrect = $true
+            Write-Log "daemon: Task $taskFolder$taskName bereits korrekt (RunLevel=$existingRunLevel)." -Level Info -LogFile $Context.LogFile
+        } else {
+            Write-Log "daemon: Task $taskFolder$taskName wird aktualisiert (RunLevel=$existingRunLevel -> $desiredRunLevel, Execute=$existingExe)." -Level Warn -LogFile $Context.LogFile
+        }
+    }
+
+    if ($taskCorrect) {
+        # nichts zu tun
     } elseif ($Context.DryRun) {
         $messages += "[DryRun] Scheduled Task $taskFolder$taskName würde registriert."
         $changed = $true
@@ -144,10 +162,10 @@
             $action = New-ScheduledTaskAction -Execute $exePath -Argument 'run'
             $trigger = New-ScheduledTaskTrigger -AtLogOn
             $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-            $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Highest
+            $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel $desiredRunLevel
             Register-ScheduledTask -TaskName $taskName -TaskPath $taskFolder -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
             $changed = $true
-            Write-Log "daemon: Task $taskFolder$taskName registriert." -Level Success -LogFile $Context.LogFile
+            Write-Log "daemon: Task $taskFolder$taskName registriert (RunLevel=$desiredRunLevel)." -Level Success -LogFile $Context.LogFile
         } catch {
             $result.Status = 'failed'
             $result.Messages += "Task-Registrierung fehlgeschlagen: $($_.Exception.Message)"

@@ -9,8 +9,8 @@ AutoHotkey als Abhängigkeit durch einen eigenen Hintergrundprozess.
 - **Hotkey `Alt + ^` (Zirkumflex)** öffnet / minimiert / fokussiert das
   AI-Assistenten-Fenster je nach Ursprungszustand (wie das bisherige
   AHK-Skript, siehe Referenz `Quick Apps.ahk`).
-- Das Fenster ist effektiv **eine Alacritty-Instanz**; darin läuft **Herdr**.
-- Beim Beenden von Herdr schließt sich das Alacritty-Fenster.
+- Das Fenster ist effektiv **eine WezTerm-Instanz**; darin läuft **Herdr**.
+- Beim Beenden von Herdr schließt sich das WezTerm-Fenster.
 - Herdr dient auch für andere PowerShell-Sitzungen. Der Hotkey soll aber gezielt
   das **designierte opencode-Panel** fokussieren.
 - Arbeiter der User bereits in Herdr, soll der Hotkey **schnell direkt zum
@@ -18,7 +18,7 @@ AutoHotkey als Abhängigkeit durch einen eigenen Hintergrundprozess.
 - **Neovim (LazyVim)** als Editor in opencode:
   - Markdown-Dateien: Diagnostics per Default **aus** (`<leader>ud` zum Togglen).
   - Spellchecking **Deutsch + Englisch**.
-- **Alacritty**:
+- **WezTerm**:
   - Font **„CaskaydiaCove Nerd Font"** (über Repo automatisch bereitstellbar).
   - `ctrl+shift+space` (Visual Mode / Copy) = Standardwert, essenziell.
   - Windows-native Titelleiste **ausgeblendet** (nackt).
@@ -33,8 +33,8 @@ AutoHotkey als Abhängigkeit durch einen eigenen Hintergrundprozess.
 
 | Komponente | Status | Detail |
 |---|---|---|
-| AHK-Skript | aktiv | `Startup\Quick Apps.ahk`; `!^` toggelt heute das **DeepSeek**-Chromium-Fenster (nicht Alacritty) |
-| Alacritty | installiert (winget), **keine Config** | `C:\Program Files\Alacritty\alacritty.exe`, 0.17.0, Config-Default `%APPDATA%\alacritty\alacritty.toml` |
+| AHK-Skript | aktiv | `Startup\Quick Apps.ahk`; `!^` toggelt heute das **DeepSeek**-Chromium-Fenster (nicht WezTerm) |
+| WezTerm | installiert (winget), **keine Config** | `C:\Program Files\WezTerm\wezterm.exe`, Config-Default `~/.wezterm.lua` |
 | Herdr | installiert, Server läuft | 0.9.0-preview, Socket `%APPDATA%\herdr\herdr.sock`, Config `%APPDATA%\herdr\config.toml` |
 | opencode | installiert (scoop) | 1.18.32; Config `~/.config/opencode/`; enthält herdr-managed `tui.jsonc`, `herdr-tui-session.js`, `plugins/herdr-agent-state.js` |
 | Neovim/LazyVim | installiert | `%LOCALAPPDATA%\nvim` ist bereits ein **git-Repo** (LazyVim-Starter) |
@@ -56,8 +56,8 @@ winget/scoop bevorzugt, `mcp`-Key (nicht `mcpServers`).
 │   • Herdr-Bridge: agent list → focus/start opencode  │
 └───────────────┬──────────────────────────────────────┘
                 │ startet/spricht
-        Alacritty (borderless, CaskaydiaCove, opacity,
-        ctrl+shift+space vi-mode)  -e herdr
+        WezTerm (borderless, CaskaydiaCove, opacity,
+        ctrl+shift+space vi-mode)  start -- herdr
                 │
         Herdr-Server (persistente Panes)
                 ├─ Pane: opencode  ← designiertes Pane
@@ -68,7 +68,7 @@ winget/scoop bevorzugt, `mcp`-Key (nicht `mcpServers`).
 
 ### Toggle-Zustandsmaschine (Alt+^)
 
-1. Fenster existiert nicht → Alacritty + `herdr` starten → auf Monitor 2 in den
+1. Fenster existiert nicht → WezTerm + `herdr` starten → auf Monitor 2 in den
    Arbeitsbereich legen (windowed, ausgebreitet) und fokussieren → opencode-Pane
    fokussieren (ggf. starten).
 2. Fenster existiert, nicht Vordergrund → nach vorn holen (restore), ggf. in den
@@ -112,14 +112,14 @@ Lars-Win-AI/
 ├─ scripts/
 │  ├─ lib.ps1                    # Logging, Symlink/Junction, Backup, Merge-Helfer
 │  └─ components/                # je eine Install-Funktion
-│     ├─ deps.ps1   (winget: herdr, alacritty, neovim, CaskaydiaCove)
-│     ├─ alacritty.ps1
+│     ├─ deps.ps1   (winget: herdr, wezterm, neovim)
+│     ├─ wezterm.ps1
 │     ├─ herdr.ps1
 │     ├─ neovim.ps1
 │     ├─ opencode.ps1
 │     └─ daemon.ps1              # Release laden, Task registrieren
 ├─ config/
-│  ├─ alacritty/alacritty.toml
+│  ├─ wezterm/wezterm.lua
 │  ├─ herdr/config.toml
 │  ├─ nvim/{init.lua,lua/config/*,lua/plugins/*,lazyvim.json,lazy-lock.json}
 │  └─ opencode/{theme json, mcp snippet, skill}
@@ -137,30 +137,31 @@ Lars-Win-AI/
   Tastenerkennung über **ScanCode** (layoutunabhängig), Alt links/rechts
   unterscheiden; Alt+^ wird konsumiert und nicht weitergereicht.
 - Fensterhandling via `user32`/`gdi32`: `EnumWindows` + Titel/Prozess
-  `alacritty.exe`, `ShowWindow`, `SetForegroundWindow`, `SetWindowPos`,
+  `wezterm-gui.exe`, `ShowWindow`, `SetForegroundWindow`, `SetWindowPos`,
   `MonitorFromPoint`/`EnumDisplayMonitors` für Monitor 2,
   `SystemParametersInfo(SPI_SETANIMATION)` off/on für Responsiveness.
 - Herdr-Bridge: ruft `herdr agent list|focus|start`, `herdr pane list|split`
   (JSON-Parse), toleriert fehlenden Server (Retry).
 - CLI: `aid run`, `aid register`, `aid unregister`, `aid status`, `--config`.
   Config: `%APPDATA%\Lars-Win-AI\config.json` (Titel, Monitor, Agent-Name,
-  Alacritty-Pfad, Pane-State).
+  WezTerm-Pfad, Pane-State).
 - Keine Konsolenausgabe im Hintergrund (`-ldflags -H=windowsgui`).
 
-### B) Alacritty (`config/alacritty/alacritty.toml`)
+### B) WezTerm (`config/wezterm/wezterm.lua`)
 
-- `[window] decorations = "None"`, `opacity = 0.90` (zentraler Testwert),
-  `dynamic_title = true`, `title = "AI-Assistant"`, `padding`, `startup_mode`.
-- `[font] family = "CaskaydiaCove Nerd Font"`, `size`.
-- `[keyboard]` `ToggleViMode` = `Ctrl+Shift+Space` (Default, explizit
-  festschreiben).
-- Start: `alacritty.exe -T "AI-Assistant" --config-file <repo>/config/alacritty/alacritty.toml -e herdr`
-  → bei Herdr-Exit schließt Fenster (Default).
+- `window_background_opacity = 0.90` (zentraler Testwert),
+  `colors.background = "#000000"`, optional `window_decorations = "NONE"`,
+  fester Fenstertitel via `format-window-title` = "AI-Assistant".
+- `font = wezterm.font 'CaskaydiaCove Nerd Font'`, `font_size`, Ligaturen via
+  `harfbuzz_features = { 'calt=1', 'liga=1', 'clig=1' }`.
+- `keys`: `Ctrl+Shift+Space` = `ActivateCopyMode`; Vi-artige `copy_mode`-Tabelle.
+- Start: `wezterm.exe [--config-file <repo>/config/wezterm/wezterm.lua] start -- herdr`
+  → bei Herdr-Exit schließt Fenster.
 
 ### C) Herdr (`config/herdr/config.toml`)
 
 - `[ui] window_title = "AI-Assistant"` (stabiles OS-Fenstertitel zum Auffinden).
-- Theme (transparentes Panel-BG passend zu Alacritty), `host_cursor` beibehalten.
+- Theme (transparentes Panel-BG passend zu WezTerm), `host_cursor` beibehalten.
 - Installer führt `herdr integration install opencode` aus (managed Dateien).
 - `herdr --skill` → schreibt Skill nach `~/.config/opencode/skills/herdr/SKILL.md`.
 
@@ -186,7 +187,8 @@ Lars-Win-AI/
 
 ### F) Font
 
-- `winget install ryanoasis.CaskaydiaCove` (idempotent; bereits vorhanden).
+- Eigener `font`-Component: Nerd-Fonts-Release-ZIP (CaskaydiaCove) von GitHub
+  laden und die Schnitte **pro Benutzer** registrieren (ohne winget).
 
 ## 7. Installer-Ablauf (`install.ps1`)
 
@@ -196,10 +198,11 @@ Lars-Win-AI/
    non-interaktiv).
 3. Deps via winget installieren (überspringt bereits Installiertes).
 4. Configs platzieren:
-   - Junction (ordnerbasiert, kein Admin): `%APPDATA%\alacritty` →
-     `config/alacritty`, `%LOCALAPPDATA%\nvim` → `config/nvim` (bestehendes
-     git-Repo vorher sichern).
-   - File-Symlink (Dev-Mode/Admin) für `%APPDATA%\herdr\config.toml`; Fallback Copy.
+   - Junction (ordnerbasiert, kein Admin): `%LOCALAPPDATA%\nvim` → `config/nvim`
+     (bestehendes git-Repo vorher sichern).
+   - File-Symlink (Dev-Mode/Admin) für `%APPDATA%\herdr\config.toml` und
+     `%USERPROFILE%\.wezterm.lua`; Fallback Copy.
+   - Font: Nerd-Fonts-Release laden, Schnitte pro Benutzer registrieren.
    - opencode: Junction nur für `themes/` & `skills/`; `opencode.jsonc` per
      **Merge** patchen (Backup `.bak`).
 5. Herdr-Integration + Skill installieren.
@@ -224,7 +227,7 @@ Verzeichnislayout, `manifest.json`-Schema, Installer-Modul-Contract
 **Phase 1 (parallel, unabhängig):**
 
 - WS-D: Go-Daemon + Unit-Tests.
-- WS-A: Alacritty- + Herdr-Assets.
+- WS-A: WezTerm- + Herdr-Assets.
 - WS-N: LazyVim-Assets.
 - WS-O: opencode-Assets (Theme, MCP-Merge, Skill).
 - WS-I: Installer-Core (lib, deps, Symlink-Logik, Task-Registrierung).
@@ -235,9 +238,8 @@ lokaler Smoke-Test.
 
 ## 9. Risiken / offene Punkte
 
-- **Alacritty-Transparenz unter Windows 11**: bekannter GPU-/Treiber-Fall
-  (`supports_transparency: false`) — muss getestet werden; Fallback: voll
-  deckend + nur opencode-Theme transparent.
+- **WezTerm-Transparenz unter Windows 11**: GPU-/Treiber-abhängig — muss
+  getestet werden; Fallback: voll deckend + nur opencode-Theme transparent.
 - **Dead-Key `^` + Alt global**: Low-Level-Hook ist der robuste Weg (ScanCode);
   Kollision mit AltGr links/rechts sauber ausschließen.
 - **Symlink-Rechte**: File-Symlinks brauchen Developer Mode/Admin; Junctions
@@ -268,9 +270,9 @@ Parity-Test mit einer plainen Windows-11-ISO gefahren.
 - Go: `go vet ./...`, `go test ./...`, Build der `windows/amd64`-Binary.
 - PowerShell: PSScriptAnalyzer über `install.ps1`/`scripts/**`; Pester-Unit-Tests
   für `lib.ps1` (Junction/Symlink-Helper, JSONC-Merge, Backup) in Temp-Sandbox.
-- Config-Validierung (ohne Systemänderung): TOML-Parse (Alacritty, Herdr),
+- Config-Validierung (ohne Systemänderung): TOML-Parse (Herdr),
   JSON-Schema (`manifest.json`, opencode-Theme), `opencode.jsonc`-Merge,
-  Lua-Syntax (LazyVim).
+  Lua-Syntax (LazyVim + WezTerm).
 - `install.ps1 -DryRun`: asserted, dass nichts geschrieben wird.
 
 ### Layer 2 — Windows-VM (Hyper-V), E2E

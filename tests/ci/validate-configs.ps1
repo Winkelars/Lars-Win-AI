@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     Prueft - sofern vorhanden - manifest.json, die opencode-Themes (JSON),
-    Alacritty/Herdr (TOML), die LazyVim-Lua-Syntax sowie `install.ps1 -DryRun`.
+    Herdr (TOML), die Lua-Syntax (LazyVim + WezTerm) sowie `install.ps1 -DryRun`.
 
     Fehlende Dateien werden uebersprungen und als ::notice:: gemeldet. Existiert
     eine Datei, wird sie zwingend validiert; jeder echte Fehler fuehrt zu Exit 1
@@ -160,15 +160,13 @@ function Invoke-TomlValidation {
 }
 
 function Invoke-LuaValidation {
-    $directory = Join-Path $RepoRoot 'config/nvim'
-    if (-not (Test-Path -LiteralPath $directory)) {
-        Write-Notice 'uebersprungen (nicht vorhanden): config/nvim'
-        return
-    }
-
-    $files = @(Get-ChildItem -LiteralPath $directory -Recurse -Filter *.lua -File)
+    $files = @()
+    $nvimDir = Join-Path $RepoRoot 'config/nvim'
+    if (Test-Path -LiteralPath $nvimDir) { $files += @(Get-ChildItem -LiteralPath $nvimDir -Recurse -Filter *.lua -File) }
+    $weztermConfig = Join-Path $RepoRoot 'config/wezterm/wezterm.lua'
+    if (Test-Path -LiteralPath $weztermConfig) { $files += @(Get-Item -LiteralPath $weztermConfig) }
     if ($files.Count -eq 0) {
-        Write-Notice 'config/nvim enthaelt keine Lua-Dateien'
+        Write-Notice 'uebersprungen (nicht vorhanden): Lua-Configs'
         return
     }
 
@@ -301,7 +299,7 @@ if (Test-Path -LiteralPath $themesDirectory) {
     Write-Notice 'uebersprungen (nicht vorhanden): config/opencode/themes'
 }
 
-$tomlTargets = @(@('config/alacritty/alacritty.toml', 'config/herdr/config.toml') |
+$tomlTargets = @(@('config/herdr/config.toml') |
     Where-Object { Test-Path -LiteralPath (Join-Path $RepoRoot $_) })
 if ($tomlTargets.Count -gt 0) {
     $moduleSpec = Get-TomlModuleSpec
@@ -313,7 +311,7 @@ if ($tomlTargets.Count -gt 0) {
         }
     }
 } else {
-    Write-Notice 'uebersprungen (nicht vorhanden): TOML-Configs (Alacritty/Herdr)'
+    Write-Notice 'uebersprungen (nicht vorhanden): TOML-Config (Herdr)'
 }
 
 Invoke-LuaValidation

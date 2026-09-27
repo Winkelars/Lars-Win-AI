@@ -25,13 +25,14 @@ param(
     [string]$GuestPassword = 'Passw0rd!',
     [string]$RepoUrl = 'https://github.com/Winkelars/Lars-Win-AI.git',
     [string]$GuestRepoPath = 'C:\Lars-Win-AI',
-    [string]$OutDir = (Join-Path $PSScriptRoot 'out'),
+    [string]$OutDir = '',
     [switch]$SkipClone,
     [switch]$SkipUninstall,
     [switch]$SkipE2E
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'vm-lib.ps1')
+if ([string]::IsNullOrWhiteSpace($OutDir)) { $OutDir = Join-Path $PSScriptRoot 'out' }
 Assert-HyperVElevated
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -66,11 +67,24 @@ try {
         $ErrorActionPreference = 'Stop'
         if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'git fehlt im Guest.' }
         if (-not $skipClone) {
-            if (Test-Path -LiteralPath $rp) {
-                git -C $rp pull --ff-only
-            } else {
-                git clone $ru $rp
+            # Native stderr (git-Fortschritt) darf unter EAP=Stop nicht als
+            # terminierender Fehler gewertet werden; Exitcode explizit pruefen.
+            $previous = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try {
+                if (Test-Path -LiteralPath $rp) {
+                    $out = & git -C $rp pull --ff-only 2>&1 | Out-String
+                } else {
+                    $out = & git clone $ru $rp 2>&1 | Out-String
+                }
+                $code = $LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $previous
             }
+            if ($code -ne 0) { throw ("git fehlgeschlagen (exit=$code):`n" + $out) }
+        }
+        if (-not (Test-Path -LiteralPath (Join-Path $rp 'tests\e2e\run.ps1'))) {
+            throw ("Repo unvollstaendig (tests\e2e\run.ps1 fehlt): " + $rp)
         }
         'repo=' + $rp
     } -ArgumentList $GuestRepoPath, $RepoUrl, [bool]$SkipClone
@@ -81,13 +95,26 @@ try {
         if ($SkipUninstall) { $e2eArgs += '-SkipUninstall' }
         Write-DriverLog ('guest cmd: powershell ' + ($e2eArgs -join ' '))
 
-        $e2e = Invoke-Command -Session $session -ScriptBlock {
+        # Guest-Ausgabe LIVE streamen: bewusst kein Out-String (das puffert bis
+        # zum Ende). Jede Zeile kommt einzeln an und wird sofort auf der Konsole
+        # und in e2e-run.txt ausgegeben. Der Exitcode ist das letzte Objekt.
+        $e2eText = Join-Path $runDir 'e2e-run.txt'
+        $exitRef = [ref]$null
+        Invoke-Command -Session $session -ScriptBlock {
             param($arguments)
-            $output = & powershell @arguments 2>&1 | Out-String
-            [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
-        } -ArgumentList (, $e2eArgs)
-
-        Set-Content -LiteralPath (Join-Path $runDir 'e2e-run.txt') -Value $e2e.Output -Encoding UTF8
+            & powershell @arguments 2>&1
+            [pscustomobject]@{ __E2EExitCode = $LASTEXITCODE }
+        } -ArgumentList (, $e2eArgs) | ForEach-Object {
+            if ($_.PSObject.Properties.Match('__E2EExitCode').Count -gt 0) {
+                $exitRef.Value = [int]$_.__E2EExitCode
+            } else {
+                $line = [string]$_
+                Write-DriverLog $line
+                Add-Content -LiteralPath $e2eText -Value $line -Encoding UTF8
+            }
+        }
+        if ($null -eq $exitRef.Value) { $exitRef.Value = 1 }
+        $e2e = [pscustomobject]@{ ExitCode = [int]$exitRef.Value }
         Write-DriverLog ('E2E exit=' + $e2e.ExitCode)
 
         $afterShot = Join-Path $runDir '01-after.png'
