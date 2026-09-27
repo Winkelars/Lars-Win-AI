@@ -1,36 +1,25 @@
 ﻿$ErrorActionPreference = 'Stop'
 
-$LibPath = Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) -ChildPath 'scripts\lib.ps1'
-. $LibPath
+# Pester 5 runs test discovery and execution in separate scopes, so the lib
+# dot-source and the fixture helpers must live in a BeforeAll so they are
+# available inside the It blocks. Requires Pester >= 5 (see docs/TESTING.md).
+BeforeAll {
+    $LibPath = Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) -ChildPath 'scripts\lib.ps1'
+    . $LibPath
 
-# Pester 3.4 (shipped with Windows PowerShell 5.1) still uses the legacy
-# operator syntax ("Should Be"), while Pester 5 requires the dash syntax
-# ("Should -Be"). These shims let the dash syntax pass on Pester 3.4 as well.
-function Global:Pester-Be {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Pester 3.4 compatibility shim, name mandated by Pester internals.')]
-    param($ActualValue, $ExpectedValue)
-    return ($ActualValue -eq $ExpectedValue)
-}
+    function New-TestSandbox {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Test fixture helper.')]
+        param()
+        $path = Join-Path -Path $env:TEMP -ChildPath ('lwai-pester-' + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $path -Force | Out-Null
+        return $path
+    }
 
-function Global:Pester-BeNullOrEmpty {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseApprovedVerbs', '', Justification = 'Pester 3.4 compatibility shim, name mandated by Pester internals.')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'ExpectedValue', Justification = 'Signature mandated by Pester 3.4 Should operator contract.')]
-    param($ActualValue, $ExpectedValue)
-    return [string]::IsNullOrEmpty($ActualValue)
-}
-
-function New-TestSandbox {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Test fixture helper.')]
-    param()
-    $path = Join-Path -Path $env:TEMP -ChildPath ('lwai-pester-' + [guid]::NewGuid().ToString('N'))
-    New-Item -ItemType Directory -Path $path -Force | Out-Null
-    return $path
-}
-
-function Remove-TestSandbox {
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Test fixture helper.')]
-    param([string]$Path)
-    if (Test-Path -LiteralPath $Path) { Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue }
+    function Remove-TestSandbox {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Test fixture helper.')]
+        param([string]$Path)
+        if (Test-Path -LiteralPath $Path) { Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue }
+    }
 }
 
 Describe 'lib.ps1 helpers' {
