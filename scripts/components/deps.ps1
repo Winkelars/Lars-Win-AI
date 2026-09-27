@@ -19,38 +19,43 @@
     $messages = @()
     $changed = $false
 
-    $font = Invoke-Winget -Id 'ryanoasis.CaskaydiaCove' -Name 'CaskaydiaCove Nerd Font' -DryRun:$Context.DryRun -SkipDeps:$Context.SkipDeps
-    if (-not $font.Ok) {
-        $result.Status = 'failed'
-        $result.Messages += 'winget nicht verfügbar oder Installation fehlgeschlagen (ryanoasis.CaskaydiaCove).'
-        Write-Log 'deps: winget-Aufruf fehlgeschlagen.' -Level Error -LogFile $Context.LogFile
-        return $result
-    }
+    $packages = @(
+        @{ Id = 'ryanoasis.CaskaydiaCove'; Name = 'CaskaydiaCove Nerd Font' },
+        @{ Id = 'Alacritty.Alacritty';     Name = 'Alacritty' },
+        @{ Id = 'Herdr.Herdr.Preview';     Name = 'Herdr (Preview)' },
+        @{ Id = 'Neovim.Neovim';           Name = 'Neovim' }
+    )
 
-    if ($Context.DryRun) {
-        if ($font.Changed) {
-            Write-Log 'deps: [DryRun] ryanoasis.CaskaydiaCove würde installiert.' -Level Info -LogFile $Context.LogFile
-        } else {
-            Write-Log 'deps: [DryRun] ryanoasis.CaskaydiaCove bereits vorhanden.' -Level Info -LogFile $Context.LogFile
+    $failed = @()
+    foreach ($package in $packages) {
+        $outcome = Invoke-Winget -Id $package.Id -Name $package.Name -DryRun:$Context.DryRun -SkipDeps:$Context.SkipDeps
+        if (-not $outcome.Ok) {
+            $failed += $package.Id
+            $messages += "winget-Installation fehlgeschlagen: $($package.Id)"
+            Write-Log "deps: $($package.Id) fehlgeschlagen." -Level Error -LogFile $Context.LogFile
+            continue
         }
-    } elseif ($font.Changed) {
-        Write-Log 'deps: ryanoasis.CaskaydiaCove installiert.' -Level Success -LogFile $Context.LogFile
-    } elseif ($font.Installed) {
-        Write-Log 'deps: ryanoasis.CaskaydiaCove bereits vorhanden.' -Level Info -LogFile $Context.LogFile
-    }
-    $changed = $font.Changed
+        if ($outcome.Changed) { $changed = $true }
 
-    foreach ($tool in @('alacritty', 'herdr', 'nvim')) {
-        if (Test-Command -Name $tool) {
-            Write-Log "deps: $tool gefunden." -Level Debug -LogFile $Context.LogFile
+        if ($Context.DryRun) {
+            if ($outcome.Changed) {
+                Write-Log "deps: [DryRun] $($package.Id) wuerde installiert." -Level Info -LogFile $Context.LogFile
+            } else {
+                Write-Log "deps: [DryRun] $($package.Id) bereits vorhanden." -Level Info -LogFile $Context.LogFile
+            }
+        } elseif ($outcome.Changed) {
+            Write-Log "deps: $($package.Id) installiert." -Level Success -LogFile $Context.LogFile
         } else {
-            $messages += "$tool nicht gefunden - bitte manuell installieren (keine Auto-Installation)."
-            Write-Log "deps: $tool nicht gefunden (nur Hinweis)." -Level Warn -LogFile $Context.LogFile
+            Write-Log "deps: $($package.Id) bereits vorhanden." -Level Info -LogFile $Context.LogFile
         }
     }
 
     $result.Changed = $changed
-    $result.Status = 'installed'
     $result.Messages = $messages
+    if ($failed.Count -gt 0) {
+        $result.Status = 'failed'
+        return $result
+    }
+    $result.Status = 'installed'
     return $result
 }

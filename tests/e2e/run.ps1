@@ -92,8 +92,10 @@ function Test-InstallState {
     $skill = Join-Path -Path $env:USERPROFILE -ChildPath '.config\opencode\skills\herdr\SKILL.md'
     Add-Assertion -Name 'Herdr-Skill installiert' -Condition (Test-Path -LiteralPath $skill) -Detail $skill
 
-    $font = (& winget list --id ryanoasis.CaskaydiaCove -e --accept-source-agreements 2>&1 | Out-String)
-    Add-Assertion -Name 'CaskaydiaCove Nerd Font vorhanden' -Condition ($font -match 'ryanoasis.CaskaydiaCove')
+    $wingetList = (& winget list --accept-source-agreements 2>&1 | Out-String)
+    foreach ($packageId in @('ryanoasis.CaskaydiaCove', 'Alacritty.Alacritty', 'Herdr.Herdr.Preview', 'Neovim.Neovim')) {
+        Add-Assertion -Name ("winget-Paket vorhanden: " + $packageId) -Condition ($wingetList -match [regex]::Escape($packageId))
+    }
 
     $exe = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Lars-Win-AI\aid.exe'
     Add-Assertion -Name 'aid.exe vorhanden' -Condition (Test-Path -LiteralPath $exe) -Detail $exe
