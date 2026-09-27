@@ -13,6 +13,14 @@
       "type": "local",
       "command": ["cmd", "/c", "playwright-mcp", "--browser", "chromium"],
       "enabled": true
+    },
+    "windows": {
+      // Windows-Desktop-Automation (Screenshot, Klick, Tastatur, Shortcut).
+      // Zum Steuern des VMConnect-Fensters (wie headed Playwright fuer die VM).
+      // Gefaehrliche Host-Tools (PowerShell/Registry) bewusst ausgeschlossen.
+      "type": "local",
+      "command": ["uvx", "windows-mcp", "serve", "--exclude-tools", "PowerShell,Registry"],
+      "enabled": true
     }
   }
 }

@@ -434,8 +434,10 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
   `backgroundElement`, `backgroundMenu` je `"none"`). Aktivierung später via
   `"theme": "ai-transparent"` (Installer-Merge).
 - MCP-Snippet: `config/opencode/mcp.snippet.jsonc` mit **exa** (remote,
-  `https://mcp.exa.ai/mcp`) und **playwright** (local,
-  `["cmd","/c","playwright-mcp","--browser","chromium"]`).
+  `https://mcp.exa.ai/mcp`), **playwright** (local,
+  `["cmd","/c","playwright-mcp","--browser","chromium"]`) und **windows**
+  (local, `["uvx","windows-mcp","serve","--exclude-tools","PowerShell,Registry"]`
+  — Windows-Desktop-Automation zum Steuern z. B. des VMConnect-Fensters).
   Installer merged dies idempotent in `~/.config/opencode/opencode.jsonc`.
 - Skill: `config/opencode/skill/SKILL.md` = Kopie von `herdr --skill`
   (Frontmatter + Body), damit der Installer ihn als
