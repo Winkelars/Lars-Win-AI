@@ -151,6 +151,12 @@ jobs:
           $config.Output.Verbosity = 'Detailed'
           Invoke-Pester -Configuration $config
 
+      # Neovim wird fuer die Lua-Syntaxpruefung in validate-configs.ps1
+      # benoetigt und ist auf windows-latest nicht vorinstalliert.
+      - name: Install Neovim (Lua syntax check)
+        shell: pwsh
+        run: choco install neovim --no-progress -y
+
       - name: Validate configs
         shell: pwsh
         run: |
