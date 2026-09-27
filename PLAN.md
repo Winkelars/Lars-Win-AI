@@ -206,6 +206,13 @@ Lars-Win-AI/
 
 ## 8. Subagent-Orchestrierung (parallel)
 
+**Orchestrierung über Herdr:** Der bauende Agent orchestriert die parallelen
+Subagenten (Phase 1) **über Herdr** (Panes + Agent-Slots), nicht nur lokal.
+Der dafür nötige Kontext zur Herdr-Steuerung (`herdr pane …`, `herdr agent …`,
+Fokus/Start/Split) wird mit **`herdr --skill`** abgerufen — das ist die
+maßgebliche Referenz und **vor** der Orchestrierung zu lesen. Diese Hinweise
+gehören auch in `AGENTS.md`, damit künftige Agents sie kennen.
+
 **Phase 0 (sequenziell):** Repo-Scaffold + **eingefrorene Verträge**:
 Verzeichnislayout, `manifest.json`-Schema, Installer-Modul-Contract
 (`Install-<Component>`), Daemon-Config-Schema + CLI-Flags, Env-Varnamen
