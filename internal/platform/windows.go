@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/Winkelars/Lars-Win-AI/internal/hotkey"
@@ -239,6 +240,8 @@ func (w *winWindow) IsForeground() bool {
 	return fg == uintptr(w.hwnd)
 }
 
+func (w *winWindow) IsMinimized() bool { return w.isIconic() }
+
 func (w *winWindow) Restore() error {
 	if w.isIconic() {
 		procShowWindow.Call(uintptr(w.hwnd), swRestore)
@@ -257,45 +260,59 @@ func (w *winWindow) ShowNormal() error {
 }
 
 func (w *winWindow) Focus() error {
-	if w.isIconic() {
-		procShowWindow.Call(uintptr(w.hwnd), swRestore)
-	}
 	hwnd := uintptr(w.hwnd)
-	if fg, _, _ := procGetForegroundWindow.Call(); fg == hwnd {
+	if w.isIconic() {
+		procShowWindow.Call(hwnd, swRestore)
+		// Warten, bis die Wiederherstellung abgeschlossen ist; sonst schlaegt
+		// SetForegroundWindow gegen ein noch ikonisches Fenster fehl.
+		for i := 0; i < 25 && w.isIconic(); i++ {
+			time.Sleep(8 * time.Millisecond)
+		}
+	}
+	if foregroundIs(hwnd) {
 		return nil
 	}
 
 	// An den aktuellen Foreground-Thread andocken: das hebt die Windows-
-	// Foreground-Sperre auf, sodass SetForegroundWindow greift. Der aufrufende
-	// Thread braucht dafuer eine Message-Queue.
+	// Foreground-Sperre auf. Der aufrufende Thread braucht eine Message-Queue.
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	var m msg
 	procPeekMessageW.Call(uintptr(unsafe.Pointer(&m)), 0, 0, 0, 0)
 
 	curThread, _, _ := procGetCurrentThreadID.Call()
-	fg, _, _ := procGetForegroundWindow.Call()
-	fgThread, _, _ := procGetWindowThreadProcessID.Call(fg, 0)
-	attached := false
-	if fgThread != 0 && fgThread != curThread {
-		if ret, _, _ := procAttachThreadInput.Call(fgThread, curThread, 1); ret != 0 {
-			attached = true
+	for attempt := 0; attempt < 3 && !foregroundIs(hwnd); attempt++ {
+		fg, _, _ := procGetForegroundWindow.Call()
+		fgThread, _, _ := procGetWindowThreadProcessID.Call(fg, 0)
+		attached := false
+		if fgThread != 0 && fgThread != curThread {
+			if ret, _, _ := procAttachThreadInput.Call(fgThread, curThread, 1); ret != 0 {
+				attached = true
+			}
 		}
-	}
-	procBringWindowToTop.Call(hwnd)
-	switched, _, _ := procSetForegroundWindow.Call(hwnd)
-	if attached {
-		procAttachThreadInput.Call(fgThread, curThread, 0)
-	}
-	if switched == 0 {
-		// Letzter Fallback: ein simulierter Alt-Druck hebt die Sperre auf.
+		procBringWindowToTop.Call(hwnd)
+		procSetForegroundWindow.Call(hwnd)
+		if attached {
+			procAttachThreadInput.Call(fgThread, curThread, 0)
+		}
+		if foregroundIs(hwnd) {
+			return nil
+		}
+		// Fallback: simulierter Alt-Druck hebt die Foreground-Sperre auf.
 		procKeybdEvent.Call(vkMenu, 0, 0, 0)
 		procKeybdEvent.Call(vkMenu, 0, keyeventfKeyUp, 0)
-		if ret, _, _ := procSetForegroundWindow.Call(hwnd); ret == 0 {
-			procSwitchToThisWindow.Call(hwnd, 1)
-		}
+		procSetForegroundWindow.Call(hwnd)
+		time.Sleep(15 * time.Millisecond)
+	}
+	if !foregroundIs(hwnd) {
+		procSwitchToThisWindow.Call(hwnd, 1)
 	}
 	return nil
+}
+
+func foregroundIs(hwnd uintptr) bool {
+	fg, _, _ := procGetForegroundWindow.Call()
+	return fg == hwnd
 }
 
 // MoveAndMaximize legt das Fenster randlos ueber den ARBEITSBEREICH des

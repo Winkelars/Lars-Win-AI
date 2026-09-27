@@ -11,6 +11,7 @@ type Window interface {
 	Title() string
 	ProcessName() string
 	IsForeground() bool
+	IsMinimized() bool
 	Restore() error
 	Minimize() error
 	ShowNormal() error

@@ -120,7 +120,7 @@ func cmdRun(args []string) error {
 		}
 	}
 
-	deps := newDeps(cfg)
+	deps := newDeps(cfg, log)
 
 	if noHook {
 		log.Infof("--no-hook aktiv: warte auf Beendigungssignal")
@@ -201,7 +201,7 @@ func cmdToggle(args []string) error {
 	log := openLogger()
 	defer log.Close()
 
-	action, err := toggle.Run(context.Background(), newDeps(cfg), cfg)
+	action, err := toggle.Run(context.Background(), newDeps(cfg, log), cfg)
 	if err != nil {
 		log.Errorf("Toggle fehlgeschlagen (%s): %v", action, err)
 		return err
@@ -316,13 +316,17 @@ func cmdStatus(args []string) error {
 	return nil
 }
 
-func newDeps(cfg *config.Config) toggle.Deps {
-	return toggle.Deps{
+func newDeps(cfg *config.Config, log *logging.Logger) toggle.Deps {
+	deps := toggle.Deps{
 		Windows: platform.NewWindowManager(),
 		Herdr: herdr.New(cfg.HerdrPath, cfg.HerdrRetryCount,
 			time.Duration(cfg.HerdrRetryMS)*time.Millisecond),
 		CFG: cfg,
 	}
+	if log != nil {
+		deps.Logf = log.Debugf
+	}
+	return deps
 }
 
 func openLogger() *logging.Logger {

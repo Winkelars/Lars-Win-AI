@@ -35,6 +35,9 @@ func (f *FakeWindow) ProcessName() string { return f.Process }
 // IsForeground meldet, ob das Fenster im Vordergrund ist.
 func (f *FakeWindow) IsForeground() bool { return f.Foreground }
 
+// IsMinimized meldet, ob das Fenster minimiert ist.
+func (f *FakeWindow) IsMinimized() bool { return f.Minimized }
+
 // Restore macht das Fenster wieder sichtbar.
 func (f *FakeWindow) Restore() error {
 	f.RestoreCalls++

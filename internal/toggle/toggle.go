@@ -55,6 +55,14 @@ type Deps struct {
 	Windows window.Manager
 	Herdr   herdr.Client
 	CFG     *config.Config
+	// Logf ist optional und dient der Diagnose (z. B. log.Debugf).
+	Logf func(format string, args ...interface{})
+}
+
+func (d Deps) logf(format string, args ...interface{}) {
+	if d.Logf != nil {
+		d.Logf(format, args...)
+	}
 }
 
 // Decide ist die reine Zustandsmaschine (CONTRACTS §6): Fenster fehlt ->
@@ -90,12 +98,20 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error) {
 
 	win, exists := window.Find(d.Windows, cfg.WindowTitle, cfg.ProcessName)
 	foreground := exists && win.IsForeground()
+	minimized := exists && win.IsMinimized()
+	if minimized {
+		// Ein minimiertes Fenster kann sich als "foreground" melden; fuer die
+		// Zustandsmaschine zaehlt es als nicht vorn -> wiederherstellen.
+		foreground = false
+	}
 	focused := false
 	if d.Herdr != nil {
 		focused = opencodeFocused(ctx, d.Herdr, cfg)
 	}
 
 	action := Decide(foreground, exists, focused)
+	d.logf("toggle: exists=%v foreground=%v minimized=%v opencodeFocused=%v -> %s",
+		exists, foreground, minimized, focused, action)
 	switch action {
 	case ActionStart:
 		if err := startAlacritty(cfg); err != nil {
