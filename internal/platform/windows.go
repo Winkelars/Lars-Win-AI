@@ -39,6 +39,7 @@ var (
 	procPeekMessageW             = user32.NewProc("PeekMessageW")
 	procKeybdEvent               = user32.NewProc("keybd_event")
 	procSetWindowPos             = user32.NewProc("SetWindowPos")
+	procGetWindowRect            = user32.NewProc("GetWindowRect")
 	procMonitorFromPoint         = user32.NewProc("MonitorFromPoint")
 	procEnumDisplayMonitors      = user32.NewProc("EnumDisplayMonitors")
 	procGetMonitorInfoW          = user32.NewProc("GetMonitorInfoW")
@@ -319,12 +320,18 @@ func foregroundIs(hwnd uintptr) bool {
 // Zielmonitors (ohne die Taskleiste zu verdecken) und laesst es im
 // Normal-Zustand ("windowed, ausgebreitet"). Bewusst KEIN SW_MAXIMIZE, weil
 // ein Fenster ohne Dekoration sonst den kompletten Monitor (Vollbild) belegt.
+// Ist das Fenster bereits korrekt positioniert, passiert NICHTS (vermeidet
+// unnoetige WM_SIZE/ConPTY-Resizes, die in herdr Panes Control-Sequenzen
+// in die Shell lecken lassen).
 func (w *winWindow) MoveAndMaximize(monitor int) error {
 	r, ok := monitorRect(monitor)
 	if !ok {
 		if r, ok = primaryMonitorRect(); !ok {
 			return fmt.Errorf("kein Monitor %d gefunden", monitor)
 		}
+	}
+	if !w.isIconic() && !w.isZoomed() && w.matchesRect(r) {
+		return nil
 	}
 	if w.isIconic() || w.isZoomed() {
 		procShowWindow.Call(uintptr(w.hwnd), swRestore)
@@ -339,6 +346,25 @@ func (w *winWindow) MoveAndMaximize(monitor int) error {
 	)
 	procShowWindow.Call(uintptr(w.hwnd), swShowNormal)
 	return nil
+}
+
+func (w *winWindow) matchesRect(r rect) bool {
+	var wr rect
+	if ret, _, _ := procGetWindowRect.Call(uintptr(w.hwnd), uintptr(unsafe.Pointer(&wr))); ret == 0 {
+		return false
+	}
+	const tol = 2
+	return absInt32(wr.Left-r.Left) <= tol &&
+		absInt32(wr.Top-r.Top) <= tol &&
+		absInt32((wr.Right-wr.Left)-(r.Right-r.Left)) <= tol &&
+		absInt32((wr.Bottom-wr.Top)-(r.Bottom-r.Top)) <= tol
+}
+
+func absInt32(v int32) int32 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func processNameForPID(pid uint32) string {

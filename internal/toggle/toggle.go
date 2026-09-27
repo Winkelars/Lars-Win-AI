@@ -191,20 +191,25 @@ func focusOpencode(ctx context.Context, d Deps, cfg *config.Config) error {
 		return nil
 	}
 	agents, err := d.Herdr.AgentList(ctx)
-	if err == nil {
-		if a, ok := herdr.FindAgent(agents, cfg.AgentName, cfg.AgentKind); ok {
-			// Explizit Workspace -> Tab -> Pane fokussieren: ein Pane-Fokus
-			// zieht Tab/Workspace nicht automatisch mit (herdr-jump).
-			if a.WorkspaceID != "" {
-				_ = d.Herdr.WorkspaceFocus(ctx, a.WorkspaceID)
-			}
-			if a.TabID != "" {
-				_ = d.Herdr.TabFocus(ctx, a.TabID)
-			}
-			if target := a.Target(); target != "" {
-				return d.Herdr.AgentFocus(ctx, target)
-			}
+	if err != nil {
+		// Kein Neustart bei transientem herdr-Fehler: sonst wuerde ein
+		// doppelter opencode-Launcher gestartet (und ggf. Control-Sequenzen
+		// in die Shell geleakt).
+		return fmt.Errorf("herdr agent list: %w", err)
+	}
+	if a, ok := herdr.FindAgent(agents, cfg.AgentName, cfg.AgentKind); ok {
+		// Explizit Workspace -> Tab -> Pane fokussieren: ein Pane-Fokus
+		// zieht Tab/Workspace nicht automatisch mit (herdr-jump).
+		if a.WorkspaceID != "" {
+			_ = d.Herdr.WorkspaceFocus(ctx, a.WorkspaceID)
 		}
+		if a.TabID != "" {
+			_ = d.Herdr.TabFocus(ctx, a.TabID)
+		}
+		if target := a.Target(); target != "" {
+			return d.Herdr.AgentFocus(ctx, target)
+		}
+		return nil
 	}
 	return startOpencode(ctx, d.Herdr, cfg)
 }
