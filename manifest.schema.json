@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Winkelars/Lars-Win-AI/manifest.schema.json",
+  "title": "Lars-Win-AI manifest",
+  "type": "object",
+  "required": ["name", "version", "components", "symlinks", "env", "release"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "description": { "type": "string" },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "function", "script", "order", "default", "requires", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*$" },
+          "function": { "type": "string", "pattern": "^Install-[A-Z][A-Za-z0-9]*$" },
+          "script": { "type": "string", "pattern": "^scripts/components/.+\\.ps1$" },
+          "order": { "type": "integer", "minimum": 0 },
+          "default": { "type": "boolean" },
+          "requires": { "type": "array", "items": { "type": "string" } },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "symlinks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "source", "target", "fallback", "backup", "component"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "kind": { "enum": ["junction", "symlink"] },
+          "source": { "type": "string" },
+          "target": { "type": "string" },
+          "fallback": { "enum": ["copy", "error"] },
+          "backup": { "type": "boolean" },
+          "component": { "type": "string" }
+        }
+      }
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "release": {
+      "type": "object",
+      "required": ["asset", "repo"],
+      "additionalProperties": false,
+      "properties": {
+        "asset": { "type": "string" },
+        "repo": { "type": "string", "pattern": "^[^/]+/[^/]+$" }
+      }
+    }
+  }
+}

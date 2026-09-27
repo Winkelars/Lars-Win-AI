@@ -1,0 +1,120 @@
+{
+  "$schema": "./manifest.schema.json",
+  "name": "Lars-Win-AI",
+  "version": "0.1.0",
+  "description": "Kontrollierte Installation des Windows-Workflows um einen AI-Assistenten (Herdr + Alacritty + opencode + LazyVim) ohne AutoHotkey.",
+  "components": [
+    {
+      "id": "deps",
+      "function": "Install-Deps",
+      "script": "scripts/components/deps.ps1",
+      "order": 10,
+      "default": true,
+      "requires": [],
+      "description": "winget-Abhängigkeiten (Herdr, Alacritty, Neovim, CaskaydiaCove Nerd Font)."
+    },
+    {
+      "id": "alacritty",
+      "function": "Install-Alacritty",
+      "script": "scripts/components/alacritty.ps1",
+      "order": 20,
+      "default": true,
+      "requires": ["deps"],
+      "description": "Alacritty-Junction und Assets platzieren."
+    },
+    {
+      "id": "herdr",
+      "function": "Install-Herdr",
+      "script": "scripts/components/herdr.ps1",
+      "order": 30,
+      "default": true,
+      "requires": ["deps"],
+      "description": "Herdr-Config verlinken, Integration + Skill installieren."
+    },
+    {
+      "id": "neovim",
+      "function": "Install-Neovim",
+      "script": "scripts/components/neovim.ps1",
+      "order": 40,
+      "default": true,
+      "requires": ["deps"],
+      "description": "LazyVim-Config als Junction platzieren (bestehendes Repo sichern)."
+    },
+    {
+      "id": "opencode",
+      "function": "Install-Opencode",
+      "script": "scripts/components/opencode.ps1",
+      "order": 50,
+      "default": true,
+      "requires": ["deps"],
+      "description": "Theme + Skill verlinken, MCP/Theme in opencode.jsonc mergen, EDITOR/VISUAL setzen."
+    },
+    {
+      "id": "daemon",
+      "function": "Install-Daemon",
+      "script": "scripts/components/daemon.ps1",
+      "order": 60,
+      "default": true,
+      "requires": [],
+      "description": "aid.exe aus GitHub-Release laden, Config/State anlegen, Scheduled Task registrieren."
+    }
+  ],
+  "symlinks": [
+    {
+      "id": "alacritty-config",
+      "kind": "junction",
+      "source": "config/alacritty",
+      "target": "%APPDATA%/alacritty",
+      "fallback": "error",
+      "backup": true,
+      "component": "alacritty"
+    },
+    {
+      "id": "nvim-config",
+      "kind": "junction",
+      "source": "config/nvim",
+      "target": "%LOCALAPPDATA%/nvim",
+      "fallback": "error",
+      "backup": true,
+      "component": "neovim"
+    },
+    {
+      "id": "herdr-config",
+      "kind": "symlink",
+      "source": "config/herdr/config.toml",
+      "target": "%APPDATA%/herdr/config.toml",
+      "fallback": "copy",
+      "backup": true,
+      "component": "herdr"
+    },
+    {
+      "id": "opencode-themes",
+      "kind": "junction",
+      "source": "config/opencode/themes",
+      "target": "%USERPROFILE%/.config/opencode/themes",
+      "fallback": "error",
+      "backup": true,
+      "component": "opencode"
+    },
+    {
+      "id": "opencode-skill",
+      "kind": "junction",
+      "source": "config/opencode/skill",
+      "target": "%USERPROFILE%/.config/opencode/skills/herdr",
+      "fallback": "error",
+      "backup": true,
+      "component": "opencode"
+    }
+  ],
+  "env": {
+    "AID_WINDOW_TITLE": "AI-Assistant",
+    "AID_MONITOR": "2",
+    "AID_AGENT_NAME": "opencode",
+    "AID_AGENT_KIND": "opencode",
+    "AID_AGENT_ARGS": "--auto"
+  },
+  "release": {
+    "asset": "aid.exe",
+    "repo": "Winkelars/Lars-Win-AI"
+  }
+}
