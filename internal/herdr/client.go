@@ -10,17 +10,29 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/Winkelars/Lars-Win-AI/internal/platform"
 )
 
 // Agent spiegelt einen Eintrag aus `herdr agent list` (.result.agents[]).
 type Agent struct {
-	Name        string `json:"agent"`
-	Kind        string `json:"kind"`
+	Label       string `json:"agent"` // Agenten-Label/Kind, z. B. "opencode"
+	Name        string `json:"name"`  // eindeutiger Live-Name (kann leer sein)
+	Kind        string `json:"kind"`  // optionales explizites Kind
 	Status      string `json:"agent_status"`
 	PaneID      string `json:"pane_id"`
 	TabID       string `json:"tab_id"`
 	WorkspaceID string `json:"workspace_id"`
 	Focused     bool   `json:"focused"`
+}
+
+// Target liefert das beste Fokus-Ziel: den eindeutigen Namen, sonst die
+// Pane-ID (herdr akzeptiert beides als Agent-Target).
+func (a Agent) Target() string {
+	if strings.TrimSpace(a.Name) != "" {
+		return a.Name
+	}
+	return a.PaneID
 }
 
 // Pane spiegelt einen Eintrag aus `herdr pane list` (.result.panes[]).
@@ -70,6 +82,7 @@ func (c *ExecClient) runner() Runner {
 	}
 	return func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		cmd := exec.CommandContext(ctx, name, args...)
+		platform.HideConsole(cmd)
 		var out, errb bytes.Buffer
 		cmd.Stdout = &out
 		cmd.Stderr = &errb
@@ -165,7 +178,9 @@ func (c *ExecClient) PaneSplit(ctx context.Context, paneID, direction string) (s
 	return ParsePaneSplit(out)
 }
 
-// FindAgent findet einen Agenten primär über den Namen, sonst über den Kind.
+// FindAgent findet einen Agenten primär über den Namen, sonst über
+// Label/Kind (Agenten ohne eindeutigen Namen, z. B. der interaktiv gestartete
+// opencode, haben nur das Label "opencode").
 func FindAgent(agents []Agent, name, kind string) (Agent, bool) {
 	if strings.TrimSpace(name) != "" {
 		for _, a := range agents {
@@ -176,7 +191,7 @@ func FindAgent(agents []Agent, name, kind string) (Agent, bool) {
 	}
 	if strings.TrimSpace(kind) != "" {
 		for _, a := range agents {
-			if a.Kind == kind {
+			if a.Label == kind || a.Kind == kind {
 				return a, true
 			}
 		}

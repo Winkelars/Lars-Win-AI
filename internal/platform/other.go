@@ -7,6 +7,7 @@ package platform
 import (
 	"context"
 	"errors"
+	"os/exec"
 
 	"github.com/Winkelars/Lars-Win-AI/internal/hotkey"
 	"github.com/Winkelars/Lars-Win-AI/internal/window"
@@ -38,6 +39,9 @@ func SetAnimations(bool) error { return nil }
 
 // ProcessAlive ist unter Nicht-Windows nicht verfügbar.
 func ProcessAlive(int) bool { return false }
+
+// HideConsole ist unter Nicht-Windows ein No-op.
+func HideConsole(*exec.Cmd) {}
 
 var (
 	_ window.Manager = (*unsupportedManager)(nil)

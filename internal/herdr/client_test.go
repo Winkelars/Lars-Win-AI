@@ -9,12 +9,16 @@ import (
 )
 
 const agentListJSON = `{"result":{"agents":[
-  {"agent":"opencode","agent_status":"running","focused":true,"pane_id":"pane-1","tab_id":"tab-1","workspace_id":"ws-1"},
-  {"agent":"shell","agent_status":"idle","focused":false,"pane_id":"pane-2","tab_id":"tab-1","workspace_id":"ws-1"}
+  {"agent":"opencode","name":"oc-main","agent_status":"running","focused":true,"pane_id":"pane-1","tab_id":"tab-1","workspace_id":"ws-1"},
+  {"agent":"shell","name":"sh","agent_status":"idle","focused":false,"pane_id":"pane-2","tab_id":"tab-1","workspace_id":"ws-1"}
 ]}}`
 
 const agentListJSONWithKind = `{"result":{"agents":[
   {"agent":"other","kind":"opencode","agent_status":"running","focused":false,"pane_id":"pane-7","tab_id":"tab-2","workspace_id":"ws-1"}
+]}}`
+
+const agentListJSONUnnamed = `{"result":{"agents":[
+  {"agent":"opencode","agent_status":"running","focused":true,"pane_id":"pane-5","tab_id":"tab-1","workspace_id":"ws-1"}
 ]}}`
 
 const paneListJSON = `{"result":{"panes":[
@@ -33,7 +37,7 @@ func TestParseAgentList(t *testing.T) {
 		t.Fatalf("len = %d", len(agents))
 	}
 	a := agents[0]
-	if a.Name != "opencode" || a.Status != "running" || !a.Focused {
+	if a.Label != "opencode" || a.Name != "oc-main" || a.Status != "running" || !a.Focused {
 		t.Errorf("Agent = %+v", a)
 	}
 	if a.PaneID != "pane-1" || a.TabID != "tab-1" || a.WorkspaceID != "ws-1" {
@@ -46,7 +50,7 @@ func TestParseAgentListArrayFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseAgentList: %v", err)
 	}
-	if len(agents) != 1 || agents[0].Name != "x" || !agents[0].Focused {
+	if len(agents) != 1 || agents[0].Label != "x" || !agents[0].Focused {
 		t.Fatalf("agents = %+v", agents)
 	}
 }
@@ -79,14 +83,21 @@ func TestParsePaneSplit(t *testing.T) {
 
 func TestFindAgent(t *testing.T) {
 	agents, _ := ParseAgentList([]byte(agentListJSON))
-	if a, ok := FindAgent(agents, "shell", ""); !ok || a.Name != "shell" {
+	if a, ok := FindAgent(agents, "sh", ""); !ok || a.Name != "sh" {
 		t.Errorf("Name-Match: %+v ok=%v", a, ok)
 	}
 	if a, ok := FindAgent(agents, "missing", ""); ok {
 		t.Errorf("unerwarteter Match: %+v", a)
 	}
+
+	// Agent ohne eindeutigen Namen: Match über Label, Fokus-Ziel = Pane-ID.
+	unnamed, _ := ParseAgentList([]byte(agentListJSONUnnamed))
+	if a, ok := FindAgent(unnamed, "opencode", "opencode"); !ok || a.Target() != "pane-5" {
+		t.Errorf("Label-Match: %+v ok=%v target=%q", a, ok, a.Target())
+	}
+
 	kindAgents, _ := ParseAgentList([]byte(agentListJSONWithKind))
-	if a, ok := FindAgent(kindAgents, "missing", "opencode"); !ok || a.Name != "other" {
+	if a, ok := FindAgent(kindAgents, "missing", "opencode"); !ok || a.Kind != "opencode" {
 		t.Errorf("Kind-Match: %+v ok=%v", a, ok)
 	}
 }

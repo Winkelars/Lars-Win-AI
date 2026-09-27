@@ -7,6 +7,7 @@ package platform
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"runtime"
 	"sort"
 	"strings"
@@ -40,7 +41,6 @@ var (
 	procUnhookWindowsHookEx      = user32.NewProc("UnhookWindowsHookEx")
 	procGetMessageW              = user32.NewProc("GetMessageW")
 	procPostThreadMessageW       = user32.NewProc("PostThreadMessageW")
-	procGetAsyncKeyState         = user32.NewProc("GetAsyncKeyState")
 
 	procGetCurrentThreadID         = kernel32.NewProc("GetCurrentThreadId")
 	procOpenProcess                = kernel32.NewProc("OpenProcess")
@@ -413,6 +413,18 @@ func ProcessAlive(pid int) bool {
 // NewHook liefert den echten WH_KEYBOARD_LL-Hook.
 func NewHook(cfg hotkey.Config) hotkey.Hook { return &windowsHook{cfg: cfg} }
 
+// HideConsole verhindert, dass beim Starten von Konsolenprogrammen (z. B.
+// herdr) aus dem GUI-Daemon heraus ein Konsolenfenster aufblitzt.
+func HideConsole(cmd *exec.Cmd) {
+	if cmd == nil {
+		return
+	}
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW
+	}
+}
+
 type windowsHook struct{ cfg hotkey.Config }
 
 var (
@@ -468,13 +480,18 @@ func lowLevelKeyboardProc(nCode int, wParam uintptr, lParam unsafe.Pointer) uint
 	if nCode == 0 {
 		k := (*kbdLLHookStruct)(lParam)
 		down := wParam == wmKeyDown || wParam == wmSysKeyDown
+		updateModifiers(k.VkCode, down)
 		e := hotkey.Event{
 			ScanCode: k.ScanCode,
 			KeyDown:  down,
-			Alt:      keyDown(vkMenu) || keyDown(vkLMenu) || keyDown(vkRMenu),
-			Ctrl:     keyDown(vkControl) || keyDown(vkLControl) || keyDown(vkRControl),
-			Shift:    keyDown(vkShift) || keyDown(vkLShift) || keyDown(vkRShift),
-			Win:      keyDown(vkLWin) || keyDown(vkRWin),
+			// Modifier werden aus dem Hook-Stream selbst getrackt, weil
+			// GetAsyncKeyState innerhalb eines Low-Level-Hooks unzuverlaessig
+			// ist. Rechts-Alt (AltGr) erzeugt zusaetzlich ein synthetisches
+			// Strg, daher wird es ueber modAltR mit ausgeschlossen.
+			Alt:      modAltL || modAltR,
+			Ctrl:     modCtrlL || modCtrlR || modAltR,
+			Shift:    modShiftL || modShiftR,
+			Win:      modWinL || modWinR,
 			Injected: k.Flags&llkhfInjected != 0,
 		}
 		if activeHookEvents != nil {
@@ -491,9 +508,32 @@ func lowLevelKeyboardProc(nCode int, wParam uintptr, lParam unsafe.Pointer) uint
 	return ret
 }
 
-func keyDown(vk int) bool {
-	ret, _, _ := procGetAsyncKeyState.Call(uintptr(vk))
-	return ret&0x8000 != 0
+var (
+	modAltL, modAltR     bool
+	modCtrlL, modCtrlR   bool
+	modShiftL, modShiftR bool
+	modWinL, modWinR     bool
+)
+
+func updateModifiers(vk uint32, down bool) {
+	switch vk {
+	case vkMenu, vkLMenu:
+		modAltL = down
+	case vkRMenu:
+		modAltR = down
+	case vkControl, vkLControl:
+		modCtrlL = down
+	case vkRControl:
+		modCtrlR = down
+	case vkShift, vkLShift:
+		modShiftL = down
+	case vkRShift:
+		modShiftR = down
+	case vkLWin:
+		modWinL = down
+	case vkRWin:
+		modWinR = down
+	}
 }
 
 var (

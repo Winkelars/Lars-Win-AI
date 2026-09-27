@@ -155,6 +155,10 @@ func cmdRun(args []string) error {
 			log.Infof("aid beendet (Hook-Ende)")
 			return nil
 		case e := <-events:
+			if e.ScanCode == hk.ScanCode {
+				log.Debugf("hotkey evt sc=%d down=%v alt=%v ctrl=%v shift=%v win=%v inj=%v",
+					e.ScanCode, e.KeyDown, e.Alt, e.Ctrl, e.Shift, e.Win, e.Injected)
+			}
 			if detector.Feed(e) {
 				select {
 				case triggers <- struct{}{}:

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Winkelars/Lars-Win-AI/internal/config"
 	"github.com/Winkelars/Lars-Win-AI/internal/herdr"
+	"github.com/Winkelars/Lars-Win-AI/internal/platform"
 	"github.com/Winkelars/Lars-Win-AI/internal/window"
 )
 
@@ -153,7 +154,9 @@ func focusOpencode(ctx context.Context, d Deps, cfg *config.Config) error {
 	agents, err := d.Herdr.AgentList(ctx)
 	if err == nil {
 		if a, ok := herdr.FindAgent(agents, cfg.AgentName, cfg.AgentKind); ok {
-			return d.Herdr.AgentFocus(ctx, a.Name)
+			if target := a.Target(); target != "" {
+				return d.Herdr.AgentFocus(ctx, target)
+			}
 		}
 	}
 	return startOpencode(ctx, d.Herdr, cfg)
@@ -202,6 +205,7 @@ func startAlacritty(cfg *config.Config) error {
 	}
 	args = append(args, "-e", "herdr")
 	cmd := exec.Command(cfg.AlacrittyPath, args...)
+	platform.HideConsole(cmd)
 	if err := startProcess(cmd); err != nil {
 		return fmt.Errorf("alacritty starten (%s): %w", cfg.AlacrittyPath, err)
 	}
