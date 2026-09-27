@@ -32,7 +32,7 @@
     "info": { "dark": "cyan", "light": "cyanDark" },
     "text": { "dark": "fg", "light": "fgLight" },
     "textMuted": { "dark": "muted", "light": "mutedLight" },
-    "selectedListItemText": "none",
+    "selectedListItemText": { "dark": "#1a1b26", "light": "#ffffff" },
     "background": "none",
     "backgroundPanel": "none",
     "backgroundElement": "none",

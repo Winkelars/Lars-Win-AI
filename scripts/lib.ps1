@@ -513,6 +513,25 @@ function Merge-OpencodeJsonc {
     return $result
 }
 
+function Test-WingetPackage {
+    # `winget list --id <id> -e` matcht manche Pakete nicht (z. B. Fonts, deren
+    # Listen-Id "FONT\\User\\<id>" lautet). Deshalb Volltext-Suche ueber die
+    # komplette Liste.
+    param(
+        [string]$Id,
+        [string]$Name
+    )
+    if ([string]::IsNullOrWhiteSpace($Id) -and [string]::IsNullOrWhiteSpace($Name)) { return $false }
+    try {
+        $output = (& winget list --accept-source-agreements 2>&1 | Out-String)
+    } catch {
+        return $false
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Id) -and $output -match [regex]::Escape($Id)) { return $true }
+    if (-not [string]::IsNullOrWhiteSpace($Name) -and $output -match [regex]::Escape($Name)) { return $true }
+    return $false
+}
+
 function Invoke-Winget {
     param(
         [string]$Id,
@@ -537,24 +556,22 @@ function Invoke-Winget {
         return $result
     }
 
-    $listed = $false
-    try {
-        $listOutput = (& winget list --id $Id -e --accept-source-agreements 2>&1 | Out-String)
-        if ($LASTEXITCODE -eq 0 -and $listOutput -match [regex]::Escape($Id)) { $listed = $true }
-    } catch {
-        $listed = $false
-    }
-    if ($listed) {
+    if (Test-WingetPackage -Id $Id -Name $Name) {
         $result.Installed = $true
         return $result
     }
 
     try {
-        $displayName = $Name
-        if ([string]::IsNullOrWhiteSpace($displayName)) { $displayName = $Id }
         $arguments = @('install', '--id', $Id, '-e', '--silent', '--accept-package-agreements', '--accept-source-agreements')
         & winget @arguments 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
+            # Manche Pakete melden "bereits installiert" mit Fehlercode; ist das
+            # Paket danach vorhanden, ist das Ziel dennoch erreicht.
+            if (Test-WingetPackage -Id $Id -Name $Name) {
+                $result.Installed = $true
+                $result.Changed = $true
+                return $result
+            }
             $result.Ok = $false
             return $result
         }
