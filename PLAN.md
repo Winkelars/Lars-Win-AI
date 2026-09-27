@@ -81,9 +81,8 @@ winget/scoop bevorzugt, `mcp`-Key (nicht `mcpServers`).
 `herdr agent list` → Agent `kind=opencode` vorhanden → `herdr agent focus <name>`.
 Nicht vorhanden → designierten Pane (persistiert in State-Datei, validiert)
 nutzen, sonst `herdr pane split` + `herdr agent start <name> --kind opencode
---pane <id>`. opencode wird dabei mit **`--auto`** gestartet; kann Herdr den
-opencode-Aufruf nicht mit Zusatz-Flags versehen, wird das als offener Punkt
-geführt (ggf. Start-Command-Override in der Herdr-Integration).
+--pane <id> -- --auto`. Herdr reicht Agent-Argumente nach `--` durch
+(verifiziert mit `herdr 0.9.0-preview`), `--auto` ist damit sauber übergebbar.
 
 ## 4. Entschiedene Design-Fragen
 
