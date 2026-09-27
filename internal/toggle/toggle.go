@@ -57,15 +57,16 @@ type Deps struct {
 	CFG     *config.Config
 }
 
-// Decide ist die reine Zustandsmaschine exakt nach CONTRACTS §6.
-func Decide(foreground, windowExists, opencodeFocused bool) Action {
+// Decide ist die reine Zustandsmaschine (CONTRACTS §6): Fenster fehlt ->
+// starten, nicht im Vordergrund -> nach vorn holen, im Vordergrund -> minimieren.
+// Bewusst NICHT abhaengig vom herdr-Fokus-Flag, da dieses bei Headless-Aufrufen
+// unzuverlaessig ist und den Toggle sonst "haengen" laesst.
+func Decide(foreground, windowExists bool) Action {
 	switch {
 	case !windowExists:
 		return ActionStart
 	case !foreground:
 		return ActionForeground
-	case !opencodeFocused:
-		return ActionFocusPane
 	default:
 		return ActionMinimize
 	}
@@ -88,12 +89,8 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error) {
 
 	win, exists := window.Find(d.Windows, cfg.WindowTitle, cfg.ProcessName)
 	foreground := exists && win.IsForeground()
-	focused := false
-	if d.Herdr != nil {
-		focused = opencodeFocused(ctx, d.Herdr, cfg)
-	}
 
-	action := Decide(foreground, exists, focused)
+	action := Decide(foreground, exists)
 	switch action {
 	case ActionStart:
 		if err := startAlacritty(cfg); err != nil {
@@ -126,25 +123,12 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error) {
 		if err := focusOpencode(ctx, d, cfg); err != nil {
 			return action, err
 		}
-	case ActionFocusPane:
-		if err := focusOpencode(ctx, d, cfg); err != nil {
-			return action, err
-		}
 	case ActionMinimize:
 		if err := win.Minimize(); err != nil {
 			return action, err
 		}
 	}
 	return action, nil
-}
-
-func opencodeFocused(ctx context.Context, c herdr.Client, cfg *config.Config) bool {
-	agents, err := c.AgentList(ctx)
-	if err != nil {
-		return false
-	}
-	a, ok := herdr.FindAgent(agents, cfg.AgentName, cfg.AgentKind)
-	return ok && a.Focused
 }
 
 func focusOpencode(ctx context.Context, d Deps, cfg *config.Config) error {

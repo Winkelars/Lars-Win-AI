@@ -328,18 +328,25 @@ type Deps struct {
     Herdr   herdr.Client
     CFG     *config.Config
 }
-func Decide(foreground bool, windowExists bool, opencodeFocused bool) Action
+func Decide(foreground bool, windowExists bool) Action
 func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
 ```
 
 **Zustandsmaschine `Decide` (pur, testbar):**
 
-| windowExists | foreground | opencodeFocused | Action |
-|---|---|---|---|
-| false | – | – | `ActionStart` |
-| true | false | – | `ActionForeground` |
-| true | true | false | `ActionFocusPane` |
-| true | true | true | `ActionMinimize` |
+| windowExists | foreground | Action |
+|---|---|---|
+| false | – | `ActionStart` |
+| true | false | `ActionForeground` |
+| true | true | `ActionMinimize` |
+
+> Bewusst ohne herdrs `focused`-Flag: das ist bei Headless-CLI-Aufrufen
+> unzuverlaessig und liess den Toggle haengen. `ActionForeground`/`ActionStart`
+> fokussieren weiterhin das opencode-Pane (`focusOpencode`).
+>
+> `MoveAndMaximize` legt das Fenster randlos ueber den **Arbeitsbereich** des
+> Zielmonitors (windowed, ausgebreitet; Taskleiste bleibt sichtbar) — kein
+> Vollbild.
 
 **Herdr-Bridge-Regeln:**
 - `herdr agent list` parsen: Agents liegen unter `.result.agents[]` mit Feldern

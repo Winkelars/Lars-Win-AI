@@ -29,8 +29,11 @@ var (
 	procGetWindowTextLengthW     = user32.NewProc("GetWindowTextLengthW")
 	procIsWindowVisible          = user32.NewProc("IsWindowVisible")
 	procIsIconic                 = user32.NewProc("IsIconic")
+	procIsZoomed                 = user32.NewProc("IsZoomed")
 	procShowWindow               = user32.NewProc("ShowWindow")
 	procSetForegroundWindow      = user32.NewProc("SetForegroundWindow")
+	procBringWindowToTop         = user32.NewProc("BringWindowToTop")
+	procSwitchToThisWindow       = user32.NewProc("SwitchToThisWindow")
 	procSetWindowPos             = user32.NewProc("SetWindowPos")
 	procMonitorFromPoint         = user32.NewProc("MonitorFromPoint")
 	procEnumDisplayMonitors      = user32.NewProc("EnumDisplayMonitors")
@@ -221,6 +224,11 @@ func (w *winWindow) isIconic() bool {
 	return ret != 0
 }
 
+func (w *winWindow) isZoomed() bool {
+	ret, _, _ := procIsZoomed.Call(uintptr(w.hwnd))
+	return ret != 0
+}
+
 func (w *winWindow) IsForeground() bool {
 	fg, _, _ := procGetForegroundWindow.Call()
 	return fg == uintptr(w.hwnd)
@@ -244,11 +252,22 @@ func (w *winWindow) ShowNormal() error {
 }
 
 func (w *winWindow) Focus() error {
-	procShowWindow.Call(uintptr(w.hwnd), swRestore)
-	procSetForegroundWindow.Call(uintptr(w.hwnd))
+	if w.isIconic() {
+		procShowWindow.Call(uintptr(w.hwnd), swRestore)
+	}
+	procBringWindowToTop.Call(uintptr(w.hwnd))
+	if ret, _, _ := procSetForegroundWindow.Call(uintptr(w.hwnd)); ret == 0 {
+		// SetForegroundWindow unterliegt der Foreground-Sperre; der
+		// undokumentierte Fallback erzwingt den Wechsel dennoch.
+		procSwitchToThisWindow.Call(uintptr(w.hwnd), 1)
+	}
 	return nil
 }
 
+// MoveAndMaximize legt das Fenster randlos ueber den ARBEITSBEREICH des
+// Zielmonitors (ohne die Taskleiste zu verdecken) und laesst es im
+// Normal-Zustand ("windowed, ausgebreitet"). Bewusst KEIN SW_MAXIMIZE, weil
+// ein Fenster ohne Dekoration sonst den kompletten Monitor (Vollbild) belegt.
 func (w *winWindow) MoveAndMaximize(monitor int) error {
 	r, ok := monitorRect(monitor)
 	if !ok {
@@ -256,7 +275,7 @@ func (w *winWindow) MoveAndMaximize(monitor int) error {
 			return fmt.Errorf("kein Monitor %d gefunden", monitor)
 		}
 	}
-	if w.isIconic() {
+	if w.isIconic() || w.isZoomed() {
 		procShowWindow.Call(uintptr(w.hwnd), swRestore)
 	}
 	width := r.Right - r.Left
@@ -267,7 +286,7 @@ func (w *winWindow) MoveAndMaximize(monitor int) error {
 		uintptr(int(width)), uintptr(int(height)),
 		swpNoZOrder|swpNoActivate,
 	)
-	procShowWindow.Call(uintptr(w.hwnd), swMaximize)
+	procShowWindow.Call(uintptr(w.hwnd), swShowNormal)
 	return nil
 }
 
@@ -306,7 +325,7 @@ func monitorRect(index int) (rect, bool) {
 		var mi monitorInfo
 		mi.Size = uint32(unsafe.Sizeof(mi))
 		if ret, _, _ := procGetMonitorInfoW.Call(hmon, uintptr(unsafe.Pointer(&mi))); ret != 0 {
-			mons = append(mons, entry{r: mi.Monitor, primary: mi.Flags&monitorInfofPrimary != 0})
+			mons = append(mons, entry{r: mi.Work, primary: mi.Flags&monitorInfofPrimary != 0})
 		}
 		return 1
 	})
@@ -349,7 +368,7 @@ func primaryMonitorRect() (rect, bool) {
 	if ret, _, _ := procGetMonitorInfoW.Call(hmon, uintptr(unsafe.Pointer(&mi))); ret == 0 {
 		return rect{}, false
 	}
-	return mi.Monitor, true
+	return mi.Work, true
 }
 
 // AnimationsEnabled liest die aktuelle System-Animationseinstellung.

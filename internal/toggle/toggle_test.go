@@ -14,21 +14,19 @@ import (
 
 func TestDecide(t *testing.T) {
 	cases := []struct {
-		foreground      bool
-		windowExists    bool
-		opencodeFocused bool
-		want            Action
+		foreground   bool
+		windowExists bool
+		want         Action
 	}{
-		{foreground: false, windowExists: false, opencodeFocused: false, want: ActionStart},
-		{foreground: false, windowExists: true, opencodeFocused: false, want: ActionForeground},
-		{foreground: false, windowExists: true, opencodeFocused: true, want: ActionForeground},
-		{foreground: true, windowExists: true, opencodeFocused: false, want: ActionFocusPane},
-		{foreground: true, windowExists: true, opencodeFocused: true, want: ActionMinimize},
+		{foreground: false, windowExists: false, want: ActionStart},
+		{foreground: false, windowExists: true, want: ActionForeground},
+		{foreground: true, windowExists: false, want: ActionStart},
+		{foreground: true, windowExists: true, want: ActionMinimize},
 	}
 	for _, tc := range cases {
-		if got := Decide(tc.foreground, tc.windowExists, tc.opencodeFocused); got != tc.want {
-			t.Errorf("Decide(%v,%v,%v) = %v, want %v",
-				tc.foreground, tc.windowExists, tc.opencodeFocused, got, tc.want)
+		if got := Decide(tc.foreground, tc.windowExists); got != tc.want {
+			t.Errorf("Decide(%v,%v) = %v, want %v",
+				tc.foreground, tc.windowExists, got, tc.want)
 		}
 	}
 }
@@ -65,35 +63,6 @@ func TestRunActionForeground(t *testing.T) {
 	}
 	if w.RestoreCalls != 1 || len(w.MoveCalls) != 1 || w.MoveCalls[0] != 2 || w.FocusCalls != 1 {
 		t.Errorf("Fensteraktionen falsch: %+v", w)
-	}
-	found := false
-	for _, c := range stub.Calls() {
-		if c == "agent focus opencode" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("AgentFocus nicht aufgerufen: %v", stub.Calls())
-	}
-}
-
-func TestRunActionFocusPane(t *testing.T) {
-	cfg := testConfig(t)
-	w := window.NewFakeWindow("AI-Assistant", "alacritty.exe")
-	w.Foreground = true
-	mgr := window.NewFakeManager(w)
-	stub := &herdr.StubClient{
-		Agents: []herdr.Agent{{Name: "opencode", Kind: "opencode", Focused: false}},
-	}
-	act, err := Run(context.Background(), Deps{Windows: mgr, Herdr: stub, CFG: cfg}, cfg)
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if act != ActionFocusPane {
-		t.Fatalf("action = %v", act)
-	}
-	if w.MinimizeCalls != 0 || w.FocusCalls != 0 {
-		t.Errorf("Fenster darf nicht verändert werden: %+v", w)
 	}
 	found := false
 	for _, c := range stub.Calls() {
