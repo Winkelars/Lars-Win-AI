@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build:
+    name: Build, Lint & Validate (windows-latest)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Ermittelt, welche Quellen bereits existieren. Noch fehlende Workstream-
+      # Dateien duerfen den Job nicht rot machen, vorhandene werden validiert.
+      - name: Detect repository state
+        id: detect
+        shell: pwsh
+        run: |
+          $goFiles = @(Get-ChildItem -Path . -Recurse -Filter *.go -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch '\\\.git\\' })
+          $cmdFiles = @(Get-ChildItem -Path 'cmd/aid' -Recurse -Filter *.go -File -ErrorAction SilentlyContinue)
+
+          $goVersion = 'stable'
+          if (Test-Path -LiteralPath 'go.mod') {
+            $match = Select-String -LiteralPath 'go.mod' -Pattern '^\s*go\s+([0-9]+(?:\.[0-9]+){0,2})' |
+              Select-Object -First 1
+            if ($match) { $goVersion = $match.Matches[0].Groups[1].Value }
+          }
+
+          "go_files=$($goFiles.Count -gt 0)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "cmd_main=$($cmdFiles.Count -gt 0)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "go_version=$goVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+          Write-Host "Go-Quellen: $($goFiles.Count); cmd/aid: $($cmdFiles.Count); go-version: $goVersion"
+
+      - name: Set up Go
+        if: steps.detect.outputs.go_files == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ steps.detect.outputs.go_version }}
+          cache: false
+
+      - name: Go vet
+        if: steps.detect.outputs.go_files == 'true'
+        shell: pwsh
+        run: go vet ./...
+
+      - name: Go test
+        if: steps.detect.outputs.go_files == 'true'
+        shell: pwsh
+        run: go test ./...
+
+      - name: Go build (windowsgui)
+        if: steps.detect.outputs.cmd_main == 'true'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
+          go build -ldflags "-H=windowsgui" -o bin/aid.exe ./cmd/aid
+
+      - name: Notice skipped Go steps
+        if: steps.detect.outputs.go_files != 'true'
+        shell: pwsh
+        run: Write-Host '::notice::Keine Go-Quellen gefunden - Go-Schritte uebersprungen.'
+
+      - name: PowerShell static analysis (PSScriptAnalyzer)
+        shell: pwsh
+        run: |
+          $targets = @()
+          foreach ($path in @('install.ps1', 'uninstall.ps1', 'scripts', 'tests')) {
+            if (Test-Path -LiteralPath $path) { $targets += $path }
+          }
+
+          $files = @()
+          foreach ($target in $targets) {
+            $item = Get-Item -LiteralPath $target
+            if ($item.PSIsContainer) {
+              $files += Get-ChildItem -LiteralPath $target -Recurse -Filter *.ps1 -File
+            } elseif ($item.Extension -eq '.ps1') {
+              $files += $item
+            }
+          }
+
+          if ($files.Count -eq 0) {
+            Write-Host '::notice::Keine PowerShell-Dateien gefunden - PSScriptAnalyzer uebersprungen.'
+            exit 0
+          }
+
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser -AllowClobber
+
+          $settings = if (Test-Path -LiteralPath 'tests/ci/PSScriptAnalyzerSettings.psd1') {
+            'tests/ci/PSScriptAnalyzerSettings.psd1'
+          } else {
+            $null
+          }
+
+          # -Path akzeptiert je nach Version nur einen Eintrag -> pro Datei aufrufen.
+          $results = @()
+          foreach ($file in $files) {
+            if ($settings) {
+              $results += Invoke-ScriptAnalyzer -Path $file.FullName -Settings $settings
+            } else {
+              $results += Invoke-ScriptAnalyzer -Path $file.FullName -Severity Error, Warning
+            }
+          }
+
+          if ($results.Count -gt 0) {
+            $results | Format-Table -AutoSize | Out-String | Write-Host
+          }
+
+          $errors = @($results | Where-Object { $_.Severity -eq 'Error' })
+          $warnings = @($results | Where-Object { $_.Severity -eq 'Warning' })
+
+          foreach ($warning in $warnings) {
+            Write-Host "::warning file=$($warning.ScriptName),line=$($warning.Line)::$($warning.RuleName): $($warning.Message)"
+          }
+          foreach ($error in $errors) {
+            Write-Host "::error file=$($error.ScriptName),line=$($error.Line)::$($error.RuleName): $($error.Message)"
+          }
+
+          Write-Host "PSScriptAnalyzer: $($errors.Count) Fehler, $($warnings.Count) Warnungen in $($files.Count) Datei(en)."
+          if ($errors.Count -gt 0) { exit 1 }
+
+      - name: Pester tests
+        shell: pwsh
+        run: |
+          $testFiles = @()
+          if (Test-Path -LiteralPath 'tests/pester') {
+            $testFiles = @(Get-ChildItem -LiteralPath 'tests/pester' -Recurse -Filter *.Tests.ps1 -File)
+          }
+          if ($testFiles.Count -eq 0) {
+            Write-Host '::notice::Keine Pester-Tests gefunden - uebersprungen.'
+            exit 0
+          }
+
+          Install-Module Pester -Force -Scope CurrentUser -MinimumVersion 5.0.0 -SkipPublisherCheck -AllowClobber
+          Import-Module Pester -MinimumVersion 5.0.0
+
+          $config = New-PesterConfiguration
+          $config.Run.Path = 'tests/pester'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          Invoke-Pester -Configuration $config
+
+      - name: Validate configs
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath 'tests/ci/validate-configs.ps1') {
+            & ./tests/ci/validate-configs.ps1
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } else {
+            Write-Host '::notice::tests/ci/validate-configs.ps1 fehlt - Config-Validierung uebersprungen.'
+          }

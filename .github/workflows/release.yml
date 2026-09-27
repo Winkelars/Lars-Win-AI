@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  GOOS: windows
+  GOARCH: amd64
+  CGO_ENABLED: '0'
+
+jobs:
+  release:
+    name: Build & publish aid.exe
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Build aid.exe (windows/amd64)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath 'cmd/aid')) {
+            Write-Host '::error::cmd/aid fehlt - Release-Build nicht moeglich.'
+            exit 1
+          }
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
+          go build -trimpath -ldflags "-H=windowsgui -s -w" -o bin/aid.exe ./cmd/aid
+
+      - name: Publish release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin/aid.exe
+          fail_on_unmatched_files: true
