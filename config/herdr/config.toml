@@ -23,6 +23,10 @@ name = "terminal"
 # gegenüber Alacritty (siehe Annahme oben).
 panel_bg = "reset"
 
+[terminal]
+# PowerShell 7 als Standard-Shell fuer neue Herdr-Panes.
+default_shell = "pwsh.exe"
+
 [ui]
 # Nativer Host-Cursor beibehalten.
 host_cursor = "native"

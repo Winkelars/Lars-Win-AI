@@ -330,11 +330,17 @@ func (w *winWindow) MoveAndMaximize(monitor int) error {
 			return fmt.Errorf("kein Monitor %d gefunden", monitor)
 		}
 	}
-	if !w.isIconic() && !w.isZoomed() && w.matchesRect(r) {
-		return nil
-	}
+	// Erst wiederherstellen (stellt die vorherige Groesse her), DANN pruefen.
+	// So loest das Maximieren nach dem Minimieren kein Resize aus, wenn die
+	// Groesse bereits stimmt (verhindert ConPTY-Resize-Leaks in die Shell).
 	if w.isIconic() || w.isZoomed() {
 		procShowWindow.Call(uintptr(w.hwnd), swRestore)
+		for i := 0; i < 25 && w.isIconic(); i++ {
+			time.Sleep(8 * time.Millisecond)
+		}
+	}
+	if w.matchesRect(r) {
+		return nil
 	}
 	width := r.Right - r.Left
 	height := r.Bottom - r.Top
