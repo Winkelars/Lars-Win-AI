@@ -73,11 +73,9 @@ winget/scoop bevorzugt, `mcp`-Key (nicht `mcpServers`).
    fokussieren (ggf. starten).
 2. Fenster existiert, nicht Vordergrund → nach vorn holen (restore), ggf. in den
    Arbeitsbereich von Monitor 2 legen → opencode-Pane fokussieren.
-3. Fenster Vordergrund → minimieren.
-
-> Hinweis (nach Nutzerfeedback): Der frühere Zwischenzustand „Pane nicht
-> fokussiert → nur Pane fokussieren" wurde entfernt, weil herdrs `focused`-Flag
-> bei Headless-Aufrufen unzuverlässig ist und den Toggle hängen ließ.
+3. Fenster Vordergrund, opencode-Pane **nicht** fokussiert → nur opencode-Pane
+   fokussieren (wechselt ggf. in dessen Tab/Workspace).
+4. Fenster Vordergrund **und** opencode-Pane fokussiert → minimieren.
 
 ### opencode-Pane-Auflösung
 
@@ -94,7 +92,7 @@ nutzen, sonst `herdr pane split` + `herdr agent start <name> --kind opencode
 | Daemon-Sprache | **Go** (eine statische `.exe`, keine Runtime) |
 | Config-Verwaltung | **Symlink/Junction** (Repo = Single Source of Truth) |
 | Daemon-Auslieferung | **GitHub-Actions-Release**, Installer lädt `aid.exe` |
-| Herdr-Fokus + Fenster im Vordergrund | **Minimieren** (der frühere „zum Pane springen"-Zwischenzustand entfällt; Pane-Fokus passiert beim Vorholen) |
+| Herdr-Fokus + opencode-Pane nicht fokussiert | **Zum opencode-Panel springen** (nicht minimieren) |
 | Keine opencode-Session | **opencode-Session starten** |
 | Autostart | **Task Scheduler** (At log on) |
 | opencode-Aufruf | Standardmäßig mit **`--auto`** (Auto-Approve) |

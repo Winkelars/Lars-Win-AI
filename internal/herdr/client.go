@@ -42,6 +42,7 @@ type Pane struct {
 	WorkspaceID string `json:"workspace_id"`
 	CWD         string `json:"cwd"`
 	AgentName   string `json:"agent"`
+	Focused     bool   `json:"focused"`
 }
 
 // Client ist die fixe herdr-Schnittstelle (CONTRACTS §6).
