@@ -84,31 +84,50 @@ Abhängigkeiten sind dort fixiert.
 | `herdr` | `Install-Herdr` | 30 | `deps` | ja | Herdr-Config verlinken, opencode-Integration + Skill installieren. |
 | `neovim` | `Install-Neovim` | 40 | `deps` | ja | LazyVim-Config als Junction (`%LOCALAPPDATA%\nvim`), bestehendes Repo vorher sichern. |
 | `opencode` | `Install-Opencode` | 50 | `deps` | ja | Theme/Skill verlinken, MCP + Theme in `opencode.jsonc` mergen, `EDITOR`/`VISUAL` setzen. |
+| `crush` | `Install-Crush` | 55 | `deps` | ja | Herdr-Skill nach `~/.config/crush/skills/herdr` verlinken (Crush meldet sich nativ an Herdr). |
 | `daemon` | `Install-Daemon` | 60 | – | ja | `aid.exe` aus dem GitHub-Release laden, Config/State anlegen, Scheduled Task registrieren. |
 
 `opencode.jsonc` wird **nicht** gejunctiont, sondern per Merge gepatcht
 (Kommentare bleiben erhalten, vorhandene Keys wie `zoho`/`brain` werden **nicht**
 überschrieben, vorher entsteht ein `.bak`).
 
-## Hotkey und Zustandsmaschine
+### Crush und Herdr
 
-Der Go-Daemon `aid.exe` registriert einen globalen Low-Level-Hook auf
-`Alt + ^` (layoutunabhängig über ScanCode `0x29`; AltGr wird ausgeschlossen) und
-startet über den Task Scheduler „At log on“ automatisch.
+Herdr erkennt eine **Crush**-Sitzung bereits **nativ**: Crush meldet Agent-Zustand
+(`idle`/`working`/`blocked`) und Session-ID selbst über den Herdr-Socket
+(`HERDR_ENV=1`, Source `crush`, Agent `crush`) und released beim Beenden. Ein
+`herdr integration install crush` gibt es daher bewusst **nicht**. Der Installer
+des Repos liefert nur den `herdr`-Skill als Junction nach
+`~/.config/crush/skills/herdr`.
 
-`Alt + ^` verhält sich je nach Zustand:
+## Hotkeys und Slots
 
-1. **Fenster existiert nicht** → WezTerm + `herdr` starten, auf Monitor 2
-   maximieren/fokussieren, opencode-Pane fokussieren (ggf. starten).
-2. **Fenster existiert, nicht im Vordergrund** → nach vorn holen (ggf. auf
-   Monitor 2 ziehen), opencode-Pane fokussieren.
-3. **Fenster im Vordergrund, opencode-Pane nicht fokussiert** → nur das
-   opencode-Pane fokussieren (schnell).
-4. **Fenster im Vordergrund und opencode-Pane fokussiert** → minimieren.
+Der Go-Daemon `aid.exe` registriert einen globalen Low-Level-Hook
+(layoutunabhängig über ScanCodes; AltGr wird ausgeschlossen) und startet über
+den Task Scheduler „At log on" automatisch. Er verwaltet Fenster-Slots:
 
-Existiert noch kein opencode-Agent, wird der designierte Pane aus der
-State-Datei genutzt bzw. per `herdr pane split` erzeugt und
-`herdr agent start … -- --auto` gestartet.
+- `Alt + ^` — Herdr-Konsole (WezTerm)
+- `Alt + 1 … Alt + 8` — Terminal, Explorer, Vivaldi, Discord, YouTube Music,
+  Audiobookshelf, DeepSeek, Steam (frei konfigurierbar über `apps[]` in
+  `config.json`)
+- `Alt + T` — künstliche Transparenz aller Slots gemeinsam an/aus
+
+Jeder Hotkey schaltet seinen Slot um:
+
+1. **Kein Fenster** → App starten, auf den Zielmonitor legen, fokussieren.
+2. **Slot nicht im Vordergrund** → zeigen und fokussieren, danach alle anderen
+   Slots verstecken.
+3. **Slot im Vordergrund** → alle seine Fenster verstecken (`SW_HIDE`, ohne
+   Animation und ohne Taskbar-Rest).
+
+„Aktiv" wird über `IsForeground` bestimmt und nicht gecacht — der Zustand
+repariert sich dadurch selbst (Win+D, Daemon-Neustart, Bench). Beim
+Herdr-Slot wird zusätzlich das opencode-Pane fokussiert (bzw. gestartet),
+nachdem das Fenster sichtbar ist.
+
+Slots mit `alpha` zwischen 1 und 254 werden über ein Layered Window
+transparent (Default 235). WezTerm, Windows Terminal und Pear Desktop bleiben
+unangetastet, weil sie eigene Transparenz mitbringen.
 
 ## Troubleshooting
 
@@ -163,16 +182,23 @@ drücken.
   `tests/ci/validate-configs.ps1`.
 - Release: Ein Tag `v*` baut `aid.exe` (`-H=windowsgui -s -w`) und hängt ihn an
   das GitHub-Release.
-- Teststrategie inkl. Layer 1–3 und Testmatrix T1–T12:
+- Drei Teststufen (Unit/CI, Bench, subjektive Bewertung), alle lokal:
   [`docs/TESTING.md`](docs/TESTING.md).
 
 ```powershell
 go vet ./...
 go test ./...
 go build -ldflags "-H=windowsgui" -o bin/aid.exe ./cmd/aid
+go build -o bin/bench.exe ./cmd/bench
 Invoke-Pester -Path tests/pester
 Invoke-ScriptAnalyzer -Path . -Recurse
 pwsh -NoProfile -File tests/ci/validate-configs.ps1
+
+# Latenz messen (echter Desktop)
+bin\bench.exe --iterations 20 --a vivaldi --b terminal
+
+# Subjektiv bewerten
+powershell -NoProfile -File tests\e2e\subjective\run.ps1
 ```
 
 ## Verweise

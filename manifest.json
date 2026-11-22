@@ -1,7 +1,7 @@
 {
   "$schema": "./manifest.schema.json",
   "name": "Lars-Win-AI",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Kontrollierte Installation des Windows-Workflows um einen AI-Assistenten (Herdr + WezTerm + opencode + LazyVim) ohne AutoHotkey.",
   "components": [
     {
@@ -59,6 +59,15 @@
       "description": "Theme + Skill verlinken, MCP/Theme in opencode.jsonc mergen, EDITOR/VISUAL setzen."
     },
     {
+      "id": "crush",
+      "function": "Install-Crush",
+      "script": "scripts/components/crush.ps1",
+      "order": 55,
+      "default": true,
+      "requires": ["deps"],
+      "description": "herdr-Skill nach Crush verlinken (~/.config/crush/skills/herdr)."
+    },
+    {
       "id": "daemon",
       "function": "Install-Daemon",
       "script": "scripts/components/daemon.ps1",
@@ -113,6 +122,15 @@
       "fallback": "error",
       "backup": true,
       "component": "opencode"
+    },
+    {
+      "id": "crush-skill",
+      "kind": "junction",
+      "source": "config/crush/skill",
+      "target": "%USERPROFILE%/.config/crush/skills/herdr",
+      "fallback": "error",
+      "backup": true,
+      "component": "crush"
     }
   ],
   "env": {

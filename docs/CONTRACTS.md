@@ -37,12 +37,16 @@ Lars-Win-AI/
 │  ├─ wezterm/wezterm.lua         # WS-A
 │  ├─ herdr/config.toml           # WS-A
 │  ├─ nvim/**                     # WS-N
-│  └─ opencode/
-│     ├─ themes/ai-transparent.json   # WS-O
-│     ├─ mcp.snippet.jsonc            # WS-O
+│  ├─ opencode/
+│  │  ├─ themes/ai-transparent.json   # WS-O
+│  │  ├─ mcp.snippet.jsonc            # WS-O
+│  │  ├─ skill/SKILL.md               # WS-O (herdr-Skill-Kopie)
+│  │  └─ README.md                    # WS-O (Merge-Erwartung)
+│  └─ crush/
 │     ├─ skill/SKILL.md               # WS-O (herdr-Skill-Kopie)
-│     └─ README.md                    # WS-O (Merge-Erwartung)
+│     └─ README.md                    # WS-O (Zielpfad/Verhalten)
 ├─ cmd/aid/**                     # WS-D
+├─ cmd/bench/**                   # WS-D (Bench, nicht ausgeliefert)
 ├─ internal/**                    # WS-D
 ├─ tests/
 │  ├─ pester/**                   # WS-I
@@ -60,7 +64,7 @@ Lars-Win-AI/
 | WS-D | `cmd/**`, `internal/**`, `go.mod`, `go.sum` |
 | WS-A | `config/wezterm/**`, `config/herdr/**` |
 | WS-N | `config/nvim/**` |
-| WS-O | `config/opencode/**` |
+| WS-O | `config/opencode/**`, `config/crush/**` |
 | WS-I | `install.ps1`, `uninstall.ps1`, `scripts/**`, `tests/pester/**`, `tests/e2e/**` |
 | WS-CI | `README.md`, `.github/**`, `docs/TESTING.md`, `tests/ci/**` |
 
@@ -120,6 +124,7 @@ Vollständiges Schema: `manifest.schema.json`. Struktur:
 | herdr | Install-Herdr | 30 | deps | true |
 | neovim | Install-Neovim | 40 | deps | true |
 | opencode | Install-Opencode | 50 | deps | true |
+| crush | Install-Crush | 55 | deps | true |
 | daemon | Install-Daemon | 60 | – | true |
 
 > `font` laedt die gepinnte Nerd-Fonts-Release-ZIP (CaskaydiaCove) von GitHub und
@@ -136,6 +141,7 @@ Vollständiges Schema: `manifest.schema.json`. Struktur:
 | herdr-config | symlink | `config/herdr/config.toml` | `%APPDATA%/herdr/config.toml` | copy | true |
 | opencode-themes | junction | `config/opencode/themes` | `%USERPROFILE%/.config/opencode/themes` | – | true |
 | opencode-skill | junction | `config/opencode/skill` | `%USERPROFILE%/.config/opencode/skills/herdr` | – | true |
+| crush-skill | junction | `config/crush/skill` | `%USERPROFILE%/.config/crush/skills/herdr` | – | true |
 
 > `opencode.jsonc` wird **nicht** gejunctiont, sondern per Merge (`.bak`) gepatcht.
 
@@ -249,34 +255,64 @@ Env: `AID_CONFIG`). Alle Felder optional; Defaults greifen.
   "herdr_path": "herdr",                  // Env AID_HERDR_PATH (testbar/stubbar)
   "pane_state_file": "%APPDATA%\\Lars-Win-AI\\pane-state.json",
   "hotkey": { "scan_code": 41, "alt_only": true, "exclude_altgr": true },
+  "alpha_hotkey": { "scan_code": 20, "alt_only": true, "exclude_altgr": true },
   "animations": true,
   "startup_timeout_ms": 8000,
   "herdr_retry_ms": 500,
-  "herdr_retry_count": 40
+  "herdr_retry_count": 40,
+  "apps": [
+    {
+      "id": "vivaldi",                  // eindeutig, nicht "herdr"
+      "scan_code": 4,                   // Alt+Ziffer, layoutunabhaengig
+      "launch": ["%LOCALAPPDATA%\\Vivaldi\\Application\\vivaldi.exe"],
+      "process": "vivaldi.exe",         // Matcher: process/class/title
+      "class": "Chrome_WidgetWin_1",
+      "title": "",
+      "monitor": 2,                     // 0 = globaler monitor
+      "alpha": 235,                     // 0/255 = native Transparenz
+      "kind": "app"                     // "app" (Default)
+    }
+  ]
 }
 ```
+
+> `apps` ist optional. Fehlt der Block, gelten die Default-Slots aus
+> `config.DefaultApps()` (Terminal, Explorer, Vivaldi, Discord, YouTube Music,
+> Audiobookshelf, DeepSeek, Steam). Der Herdr-Fenster-Slot wird aus
+> `window_title`/`process_name`/`hotkey` gebildet und ist kein `apps`-Eintrag.
+>
+> Validierung: eindeutige `id` und `scan_code`, kein Konflikt mit
+> `hotkey.scan_code` oder `alpha_hotkey.scan_code`, mindestens ein Matcher,
+> `alpha` 0–255. `alpha_hotkey` (Default ScanCode 20 = Alt+T) schaltet die
+> künstliche Transparenz aller Slots gemeinsam an/aus; die Action `alpha` ist
+> als Slot-ID reserviert.
 
 > ScanCode 0x29 = 41 dezimal (US-Layout `^`, layoutunabhängig).
 
 **CLI (fix):**
 
 ```
-aid run       [--config PATH] [--no-hook]      # Standard: Hook + Toggle-Loop
+aid run       [--config PATH] [--no-hook]      # Standard: Hook + Slot-Loop
+aid toggle    [--config PATH]                  # Herdr-Slot umschalten
+aid app <id>  [--config PATH]                  # einen App-Slot umschalten
+aid apps      [--config PATH]                  # Slots und Bindings auflisten
+aid windows   [--match TEXT]                   # Top-Level-Fenster + Work Areas
 aid register  [--config PATH]                  # Task Scheduler "At log on"
 aid unregister
 aid status    [--config PATH] [--json]
-aid toggle    [--config PATH] [--no-hook]      # ein einzelner Toggle (Test/Debug)
 aid version | --version
 aid help | --help
 ```
 
-- `--no-hook`: Hook wird nicht installiert; erlaubt Test/VM-Betrieb.
+- `--no-hook`: Hook wird nicht installiert; erlaubt Testbetrieb ohne Hook.
 - `register` legt Task `Lars-Win-AI\aid` mit Trigger `At log on`, Settings
   `-RunLevel Highest` (Daemon laeuft elevated, damit Herdr/opencode elevated
   laufen — ohne UAC-Prompt), `-ExecutionTimeLimit 0`, `-RestartCount 3`,
   Action = `<repo>\bin\aid.exe run`.
 - Build: `go build -ldflags "-H=windowsgui" -o bin/aid.exe ./cmd/aid`
   (**keine** Konsolenausgabe im Hintergrund).
+- Bench: `go build -o bin/bench.exe ./cmd/bench` (Konsolen-Binary, nur fuer
+  Entwicklung, siehe `docs/TESTING.md`).
 
 **Env-Variablen (fix, vom Installer gesetzt):** `AID_WINDOW_TITLE`,
 `AID_MONITOR`, `AID_AGENT_NAME`, `AID_AGENT_KIND`, `AID_AGENT_ARGS`,
@@ -288,12 +324,14 @@ aid help | --help
 
 ```
 cmd/aid/main.go                # CLI-Dispatch, Signal-Handling, windowsgui
+cmd/bench/main.go              # Bench (Konsolen-Binary, nicht ausgeliefert)
+internal/apps/                 # Slot-Zustandsmaschine, pur, 100% testbar (+ _test)
 internal/config/               # Load, Defaults, Env-Overrides, Validate (+ _test)
 internal/logging/              # Datei-Logger (%LOCALAPPDATA%\Lars-Win-AI\aid.log)
 internal/window/               # Fenster-Steuerung hinter Interface (+ _test)
-internal/hotkey/               # WH_KEYBOARD_LL Hook hinter Interface (+ _test)
+internal/hotkey/               # WH_KEYBOARD_LL Hook, Binding-Set, Router (+ _test)
 internal/herdr/                # CLI-Bridge, JSON-Parse, Stub-Typen (+ _test)
-internal/toggle/               # Zustandsmaschine, pur, 100% testbar (+ _test)
+internal/toggle/               # Herdr-/opencode-Integration (Pane-Fokus, Agent-Start)
 internal/platform/             # build-tagged Windows-Syscalls, Stubs für !windows
 ```
 
@@ -301,6 +339,7 @@ internal/platform/             # build-tagged Windows-Syscalls, Stubs für !wind
 
 ```go
 // internal/window
+type Rect struct { Left, Top, Right, Bottom int }
 type Manager interface {
     FindByProcess(processName string) (Window, bool)
     FindByTitle(title string) (Window, bool)
@@ -310,15 +349,44 @@ type Window interface {
     Handle() uintptr
     Title() string
     ProcessName() string
+    PID() uint32
+    ClassName() string
+    Owner() uintptr
     IsForeground() bool
     IsMinimized() bool
     IsVisible() bool
     Restore() error
     Minimize() error
+    Hide() error
     ShowNormal() error
     Focus() error
+    SetAlpha(alpha uint8) error
+    Alpha() int
+    Rect() (Rect, bool)
     MoveAndMaximize(monitor int) error
 }
+
+// internal/hotkey
+type Binding struct { Action string; ScanCode uint32; AltOnly, ExcludeAltGr bool }
+type Set struct { /* ... */ }
+func NewSet([]Binding) Set
+func (s Set) Match(e Event) (Binding, bool)     // Keydown, Modifier, Injected
+type Router struct { /* ... */ }
+func NewRouter(Set) *Router
+func (r *Router) Feed(e Event) (Binding, bool)  // steigende Flanke
+
+// internal/apps
+type Spec struct {
+    ID, Kind string
+    ScanCode uint32
+    Launch   []string
+    Process, Class, Title string
+    Monitor, Alpha        int
+}
+type Snapshot struct { ByID map[string][]window.Window; All []window.Window }
+func Take(m window.Manager, specs []Spec) (Snapshot, error)
+func Toggle(ctx context.Context, d Deps, spec Spec) (Result, error)
+// Result: ResultNone, ResultStart, ResultShow, ResultHide
 
 // internal/herdr
 type Client interface {
@@ -334,39 +402,41 @@ type Agent struct { Label, Name, Kind, Status, PaneID, TabID, WorkspaceID string
 type Pane  struct { ID, TabID, WorkspaceID, CWD string; AgentName string; Focused bool }
 
 // internal/toggle
-type Action int // ActionNone, ActionStart, ActionForeground, ActionFocusPane, ActionMinimize, ActionFocusAndForeground
-type Deps struct {
-    Windows window.Manager
-    Herdr   herdr.Client
-    CFG     *config.Config
-}
-func Decide(foreground bool, windowExists bool, opencodeFocused bool) Action
-func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
+type Deps struct { Herdr herdr.Client; CFG *config.Config; Logf func(string, ...interface{}) }
+func FocusOpencode(ctx context.Context, d Deps, cfg *config.Config) error
+func StartOpencode(ctx context.Context, c herdr.Client, cfg *config.Config) error
 ```
 
-**Zustandsmaschine `Decide` (pur, testbar):**
+**Slot-Zustandsmaschine (pur, testbar):**
 
-| windowExists | foreground | opencodeFocused | Action |
-|---|---|---|---|
-| false | – | – | `ActionStart` |
-| true | false | – | `ActionForeground` |
-| true | true | false | `ActionFocusPane` |
-| true | true | true | `ActionMinimize` |
+Jeder Slot (Herdr + `apps[]`) ist entweder sichtbar/fokussiert oder komplett
+versteckt. „Aktiv" wird ueber `IsForeground` bestimmt, **nicht** gecacht —
+damit ist der Zustand selbstheilend (Win+D, Bench, Daemon-Neustart).
 
-> `opencodeFocused` wird primaer aus `herdr agent list` (`focused`) und mit
-> Fallback ueber `herdr pane list` (`focused` des Agent-Panes) bestimmt.
-> `ActionStart`/`ActionForeground` fokussieren zusaetzlich das opencode-Pane
-> (`focusOpencode`).
+| Zustand | Aktion |
+|---|---|
+| kein Fenster | starten (`launch`), warten, zeigen, fokussieren |
+| Fenster vorhanden, nicht im Vordergrund | zeigen, fokussieren, dann alle anderen Slots verstecken |
+| Fenster im Vordergrund | alle Fenster des Slots verstecken |
+
+> Reihenfolge ist verbindlich: **erst zeigen, dann verstecken**, sonst blitzt
+> der Desktop durch. Ein Dialog (Fenster mit `Owner`) gehoert zum Slot seines
+> Aufrufers und wird mit versteckt.
 >
 > `MoveAndMaximize` legt das Fenster randlos ueber den **Arbeitsbereich** des
 > Zielmonitors (windowed, ausgebreitet; Taskleiste bleibt sichtbar) — kein
-> Vollbild, und ist idempotent (resized nur bei abweichender Groesse). Beim Start
-> wendet der Daemon `MoveAndMaximize` mehrfach an (`settleAndMaximize`), weil
-> WezTerm seine Fenstergeometrie kurz nach dem Erscheinen selbst setzt.
+> Vollbild, und ist idempotent (resized nur bei abweichender Groesse). Beim
+> Herdr-Slot wird die Position nach dem Zeigen im Hintergrund mehrfach
+> nachgezogen, weil WezTerm seine Geometrie kurz nach dem Erscheinen selbst
+> setzt.
 >
-> `ActionMinimize` **versteckt** das Fenster (`SW_HIDE`), es minimiert NICHT:
-> `SW_MINIMIZE` setzt die Client-Groesse auf 0 → ConPTY/opencode-Session bricht
-> ab. Versteckte Fenster werden weiter gefunden (`IsVisible`) und wieder gezeigt.
+> Verstecken ist **`SW_HIDE`**, kein `SW_MINIMIZE`: das setzt die Client-Groesse
+> auf 0 → ConPTY/opencode-Session bricht ab. Versteckte Fenster werden weiter
+> gefunden.
+>
+> `alpha` 1–254 setzt `WS_EX_LAYERED` + `SetLayeredWindowAttributes`. `0` und
+> `255` fassen das Fenster nicht an: WezTerm, Windows Terminal und Pear Desktop
+> bringen eigene Transparenz mit.
 
 **Herdr-Bridge-Regeln:**
 - `herdr agent list` parsen: Agents liegen unter `.result.agents[]` mit Feldern
@@ -386,10 +456,12 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
 - Alles außerhalb von `internal/platform` muss auf Nicht-Windows kompilieren
   (`go build ./...` auf linux/windows identical), daher build-tags.
 
-**Testing-Anforderung:** `internal/toggle`, `internal/config`, `internal/herdr`
-(JSON-Parse + Stub-Client) und `internal/window` (Fake-Manager) brauchen
-`_test.go` mit `go test ./...` grün. Die echten Windows-Syscalls
-(`golang.org/x/sys` NICHT verwenden → **nur Go-Standardbibliothek**).
+**Testing-Anforderung:** `internal/apps`, `internal/hotkey`, `internal/toggle`,
+`internal/config`, `internal/herdr` (JSON-Parse + Stub-Client) und
+`internal/window` (Fake-Manager) brauchen `_test.go` mit `go test ./...` grün.
+Die echten Windows-Syscalls (`golang.org/x/sys` NICHT verwenden → **nur
+Go-Standardbibliothek**). Bench und subjektive Bewertung siehe
+`docs/TESTING.md`.
 
 ---
 
@@ -423,6 +495,11 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
     (`opacity`/`transparent`-Optionen, je nach Herdr-Theme-Schema).
 - `Herdr`-Integration: Installer (WS-I) führt
   `herdr integration install opencode` aus; WS-A liefert nur die Config.
+- **Crush** wird von Herdr bereits nativ erkannt: Crush meldet Agent-Zustand
+  (`idle`/`working`/`blocked`) und Session-ID selbst über den Herdr-Socket
+  (`HERDR_ENV=1`, Source `crush`, Agent `crush`) und released beim Beenden. Für
+  Crush ist daher **kein** `herdr integration install` nötig; der Installer liefert
+  nur den Skill (siehe §14).
 
 ## 9. LazyVim-Asset-Vertrag (WS-N)
 
@@ -487,3 +564,21 @@ func Run(ctx context.Context, d Deps, cfg *config.Config) (Action, error)
   committet ggf. nach Integration.
 - Keine Secrets in Dateien.
 - Keine `.exe`/Build-Artefakte einchecken (siehe `.gitignore`).
+
+---
+
+## 14. Crush-Asset-Vertrag (WS-O)
+
+- Ordner `config/crush/` liefert **nur** den Herdr-Skill; Herdr erkennt Crush
+  bereits nativ (Crush meldet sich selbst, siehe §8) — es gibt bewusst kein
+  `herdr integration install crush`.
+- Skill: `config/crush/skill/SKILL.md` = 1:1-Kopie von `herdr --skill`
+  (agent-agnostisch; UTF-8 **ohne BOM**, beginnt mit `---`), Zielpfad
+  `%USERPROFILE%/.config/crush/skills/herdr`.
+- Crush lädt globale Skills aus `%USERPROFILE%\.config\crush\skills`
+  automatisch (`crush/internal/config.GlobalSkillsDirs`).
+- Symlink: `crush-skill` (junction, `fallback = error`, `backup = true`),
+  Komponente `crush` (`Install-Crush`, order 55, requires `deps`). Der Skill-Link
+  ist über `New-JunctionSafe` idempotent; ein vorhandenes Ziel wird gesichert.
+- `config/crush/README.md`: dokumentiert Zielpfad, Junction-Verhalten und die
+  native Herdr-Erkennung.

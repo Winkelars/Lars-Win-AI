@@ -277,12 +277,37 @@ $themeAssertion = {
     }
 }
 
+function Invoke-SkillValidation {
+    param([string]$RelativePath)
+    $full = Get-RelativeFullPath $RelativePath
+    if (-not $full) { return }
+
+    $bytes = [System.IO.File]::ReadAllBytes($full)
+    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        Add-Failure "$RelativePath : enthaelt UTF-8-BOM (muss mit '---' beginnen)"
+        return
+    }
+    $text = [System.Text.Encoding]::UTF8.GetString($bytes)
+    if (-not $text.StartsWith('---')) {
+        Add-Failure "$RelativePath : beginnt nicht mit '---'"
+        return
+    }
+    if ($text -notmatch '(?m)^name:\s*herdr\s*$') {
+        Add-Failure "$RelativePath : Frontmatter 'name: herdr' fehlt"
+        return
+    }
+    Add-Success "$RelativePath : Skill ok (name: herdr)"
+}
+
 # --- Main ------------------------------------------------------------------
 
 Write-Host '== Lars-Win-AI Config-Validierung =='
 Write-Host "Repo: $RepoRoot"
 
 Invoke-JsonValidation -RelativePath 'manifest.json' -Label 'manifest.json' -Assertion $manifestAssertion
+
+Invoke-SkillValidation -RelativePath 'config/opencode/skill/SKILL.md'
+Invoke-SkillValidation -RelativePath 'config/crush/skill/SKILL.md'
 
 $themesDirectory = Join-Path $RepoRoot 'config/opencode/themes'
 if (Test-Path -LiteralPath $themesDirectory) {

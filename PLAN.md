@@ -122,7 +122,8 @@ Lars-Win-AI/
 │  ├─ wezterm/wezterm.lua
 │  ├─ herdr/config.toml
 │  ├─ nvim/{init.lua,lua/config/*,lua/plugins/*,lazyvim.json,lazy-lock.json}
-│  └─ opencode/{theme json, mcp snippet, skill}
+│  ├─ opencode/{theme json, mcp snippet, skill}
+│  └─ crush/{skill, README}
 ├─ cmd/aid/                      # Go-Daemon (main, hook, window, herdr, config)
 ├─ internal/...                  # Go-Pakete + _test.go
 ├─ .github/workflows/release.yml # Build → Release-Asset aid.exe
@@ -184,6 +185,14 @@ Lars-Win-AI/
   (local) ergänzen; zoho/brain bleiben unberührt.
 - Skill installieren (`herdr`), `EDITOR`/`VISUAL = nvim` als User-Env setzen.
 - Standardaufruf der opencode-Sitzung: **`opencode --auto`**.
+
+### G) Crush
+
+- Herdr erkennt Crush **nativ**: Crush meldet Agent-Zustand und Session-ID selbst
+  über den Herdr-Socket (Source `crush`, Agent `crush`); kein
+  `herdr integration install crush` nötig.
+- Skill (`herdr --skill`) als Junction `config/crush/skill` →
+  `%USERPROFILE%/.config/crush/skills/herdr`.
 
 ### F) Font
 
@@ -261,13 +270,12 @@ lokaler Smoke-Test.
 
 ## 11. Testing
 
-**Annahme:** Die Test-VM (Win 11 21H2 Dev-Env) und das Zielsystem (26100)
-verhalten sich für unsere Prüfpunkte identisch. Es wird **kein** separater
-Parity-Test mit einer plainen Windows-11-ISO gefahren.
+Details und Befehle: [`docs/TESTING.md`](docs/TESTING.md). Keine VM, keine
+Screenshot-Pipeline — alles läuft lokal.
 
-### Layer 1 — CI (GitHub Actions, `windows-latest`), bei jedem Push
+### Stufe 1 — Unit und CI (`windows-latest`), bei jedem Push
 
-- Go: `go vet ./...`, `go test ./...`, Build der `windows/amd64`-Binary.
+- Go: `go vet ./...`, `go test ./...`, Build von `aid.exe` und `bench.exe`.
 - PowerShell: PSScriptAnalyzer über `install.ps1`/`scripts/**`; Pester-Unit-Tests
   für `lib.ps1` (Junction/Symlink-Helper, JSONC-Merge, Backup) in Temp-Sandbox.
 - Config-Validierung (ohne Systemänderung): TOML-Parse (Herdr),
@@ -275,48 +283,44 @@ Parity-Test mit einer plainen Windows-11-ISO gefahren.
   Lua-Syntax (LazyVim + WezTerm).
 - `install.ps1 -DryRun`: asserted, dass nichts geschrieben wird.
 
-### Layer 2 — Windows-VM (Hyper-V), E2E
+### Stufe 2 — Bench (echter Desktop, automatisch)
 
-- Basis: Hyper-V Quick Create „Windows 11-Entwicklungsumgebung", 2 vCPU / 4 GB,
-  lokaler Admin `User`/`Passw0rd!`, **Checkpoint `baseline`** nach Erstboot.
-- Vor jedem Lauf: Rollback auf `baseline`.
-- `tests/e2e/run.ps1`: `install.ps1 -Yes` → Assertions (Pakete, Junctions,
-  Scheduled Task, Daemon-Prozess, `EDITOR`/`VISUAL`, opencode-Merge **ohne
-  Clobber** von zoho/brain, Herdr-Skill-Datei, Font, Config-Parse) → **Reboot**
-  → At-Logon → **zweiter Lauf** (Idempotenz) → `uninstall.ps1 -RestoreBackups`
-  → Aufräum-Assertions.
-- Interaktiv in der VM: Alt+^ durch alle 4 Zustände, opencode-Pane focus/start,
-  `ctrl+shift+space`, LazyVim-Markdown ohne Diagnostics + `en,de` Spell, Theme.
+- `cmd/bench` misst `show`, `hide`, `switch` in-process gegen `internal/apps`
+  (keine Tastatur-Injektion), inklusive Flacker-Sampling, Geometrie und Alpha.
+- Schwellen: `show` p95 ≤ 50 ms, `hide` ≤ 30 ms, `switch` ≤ 80 ms,
+  0 Flacker-Ereignisse. JSON-Report + Baseline-Vergleich, Exitcode 1 bei
+  Verletzung.
 
-### Layer 3 — Abnahme auf echter Hardware (Pflicht)
+### Stufe 3 — Subjektive Bewertung (Mensch, lokal)
 
-- Dediziertes lokales Testkonto auf dem 26100-Zielsystem: Monitor 2, echte
-  Transparenz, Responsiveness; danach Lauf im Hauptprofil.
+- `tests/e2e/subjective/run.ps1`: vier Blöcke, Skalen 1–10 für Latenz,
+  Smoothness und Gesamterfahrung, plus Flacker ja/nein.
+- Ergebnisse als JSON mit Commit, Binary-Hash und Monitorlayout; `-Compare`
+  gegen einen früheren Lauf.
 
 ### Testmatrix
 
-| # | Szenario | Layer | Erwartung |
+| # | Szenario | Stufe | Erwartung |
 |---|---|---|---|
-| T1 | Frischer Komplett-Install | VM | Exit 0, alle Assertions grün |
-| T2 | Zweiter Lauf (Idempotenz) | VM | Keine Fehler/Duplikate |
-| T3 | Teilinstall (`-Components`) | VM | Nur diese installiert |
-| T4 | winget/git fehlt | VM | Klarer Abbruch, kein Teilzustand |
-| T5 | Symlink ohne Dev-Mode | VM | Copy-Fallback **oder** klarer Hinweis |
-| T6 | Reboot → Autostart | VM | Daemon läuft |
-| T7 | Uninstall | VM | Sauber, Backups zurück |
-| T8 | Kein Herdr-Server beim ersten Alt+^ | VM | Robuster Start, Retry ok |
-| T9 | Keine opencode-Session → Alt+^ | VM | Session wird gestartet |
-| T10 | Monitor 2 / Transparenz / Responsiveness | Real | Akzeptanz |
-| T11 | Bestehende User-Configs | VM/Real | Merge ohne Clobber, `.bak` da |
-| T12 | `opencode.jsonc` mit Kommentaren | VM | Merge erhält Kommentare |
+| T1 | Frischer Komplett-Install | 1 | Exit 0, alle Assertions grün |
+| T2 | Zweiter Lauf (Idempotenz) | 1 | Keine Fehler/Duplikate |
+| T3 | Teilinstall (`-Components`) | 1 | Nur diese installiert |
+| T4 | winget/git fehlt | 1 | Klarer Abbruch, kein Teilzustand |
+| T5 | Symlink ohne Dev-Mode | 1 | Copy-Fallback **oder** klarer Hinweis |
+| T6 | Logon-Autostart | 2/3 | Daemon läuft |
+| T7 | Uninstall | 1 | Sauber, Backups zurück |
+| T8 | Kein Herdr-Server beim ersten Alt+^ | 2/3 | Robuster Start, Retry ok |
+| T9 | Keine opencode-Session → Alt+^ | 2/3 | Session wird gestartet |
+| T10 | Monitor 2 / Transparenz / Latenz | 2/3 | Schwellen + Bewertung ≥ 8 |
+| T11 | Bestehende User-Configs | 1 | Merge ohne Clobber, `.bak` da |
+| T12 | `opencode.jsonc` mit Kommentaren | 1 | Merge erhält Kommentare |
 
 ### Design-Implikationen fürs Repo
 
 - Installer: `-DryRun`/`-WhatIf`, `-Yes`, `-Components`, `-SkipDeps`,
   strukturiertes Ergebnis (JSON), Journal-Log.
 - Daemon: `--config`-Override, `herdr`-Pfad-Override (stubbar), optionaler
-  `--no-hook`-Modus → in VM/CI ohne echten Hook testbar.
-- Repo: `tests/e2e/{run.ps1,MANUAL.md}`, Pester-Tests,
+  `--no-hook`-Modus → ohne echten Hook testbar; „aktiv" wird aus
+  `IsForeground` abgeleitet, damit Bench und Daemon sich nicht desynchronisieren.
+- Repo: `tests/e2e/subjective/run.ps1`, Pester-Tests,
   `uninstall.ps1 -RestoreBackups`.
-- Risiko 21H2: durch die obige Annahme abgedeckt; stellt Layer 3 eine Abweichung
-  fest, wird Layer 2 nachgezogen.

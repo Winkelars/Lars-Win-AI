@@ -67,6 +67,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path bin | Out-Null
           go build -ldflags "-H=windowsgui" -o bin/aid.exe ./cmd/aid
 
+      - name: Go build (bench)
+        if: steps.detect.outputs.go_files == 'true'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
+          if (Test-Path ./cmd/bench) { go build -o bin/bench.exe ./cmd/bench }
+          else { Write-Host '::notice::cmd/bench fehlt - Bench-Build uebersprungen.' }
+
       - name: Notice skipped Go steps
         if: steps.detect.outputs.go_files != 'true'
         shell: pwsh
