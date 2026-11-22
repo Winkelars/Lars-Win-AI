@@ -40,6 +40,9 @@ func TestDefaults(t *testing.T) {
 	if c.Hotkey.ScanCode != 41 || !c.Hotkey.AltOnly || !c.Hotkey.ExcludeAltGr {
 		t.Errorf("Hotkey = %+v", c.Hotkey)
 	}
+	if c.AlphaHotkey.ScanCode != 20 || !c.AlphaHotkey.AltOnly {
+		t.Errorf("AlphaHotkey = %+v", c.AlphaHotkey)
+	}
 	if c.StartupTimeoutMS != 8000 || c.HerdrRetryMS != 500 || c.HerdrRetryCount != 40 {
 		t.Errorf("Timeouts = %d/%d/%d", c.StartupTimeoutMS, c.HerdrRetryMS, c.HerdrRetryCount)
 	}
@@ -169,6 +172,21 @@ func TestValidateErrors(t *testing.T) {
 		{"Retry negativ", func(c *Config) { c.HerdrRetryMS = -1 }},
 		{"RetryCount negativ", func(c *Config) { c.HerdrRetryCount = -1 }},
 		{"ScanCode 0", func(c *Config) { c.Hotkey.ScanCode = 0 }},
+		{"Alpha ScanCode 0", func(c *Config) { c.AlphaHotkey.ScanCode = 0 }},
+		{"Alpha wie Herdr", func(c *Config) { c.AlphaHotkey.ScanCode = c.Hotkey.ScanCode }},
+		{"App ScanCode wie Alpha", func(c *Config) { c.Apps[0].ScanCode = c.AlphaHotkey.ScanCode }},
+		{"App ohne Matcher", func(c *Config) {
+			c.Apps[0].Process = ""
+			c.Apps[0].Class = ""
+			c.Apps[0].Title = ""
+		}},
+		{"App ScanCode 0", func(c *Config) { c.Apps[0].ScanCode = 0 }},
+		{"App ScanCode doppelt", func(c *Config) { c.Apps[1].ScanCode = c.Apps[0].ScanCode }},
+		{"App ScanCode wie Herdr", func(c *Config) { c.Apps[0].ScanCode = c.Hotkey.ScanCode }},
+		{"App Alpha zu groß", func(c *Config) { c.Apps[0].Alpha = 256 }},
+		{"App ID doppelt", func(c *Config) { c.Apps[1].ID = c.Apps[0].ID }},
+		{"App Launch leer", func(c *Config) { c.Apps[0].Launch = []string{" "} }},
+		{"App Kind unbekannt", func(c *Config) { c.Apps[0].Kind = "fenster" }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -188,5 +206,88 @@ func TestExpandEnvPercent(t *testing.T) {
 	}
 	if got := ExpandEnv(`%UNSET_VAR_XYZ%`); got != `%UNSET_VAR_XYZ%` {
 		t.Errorf("ExpandEnv unset = %q", got)
+	}
+}
+
+func TestDefaultApps(t *testing.T) {
+	defs := DefaultApps()
+	if len(defs) != 8 {
+		t.Fatalf("DefaultApps = %d, erwartet 8", len(defs))
+	}
+	ids := make(map[string]bool, len(defs))
+	codes := make(map[uint32]bool, len(defs))
+	for _, a := range defs {
+		if a.ID == "" || ids[a.ID] {
+			t.Errorf("ID leer oder doppelt: %q", a.ID)
+		}
+		ids[a.ID] = true
+		if a.ScanCode == 0 || codes[a.ScanCode] {
+			t.Errorf("ScanCode leer oder doppelt: %d", a.ScanCode)
+		}
+		codes[a.ScanCode] = true
+		if a.Process == "" && a.Class == "" && a.Title == "" {
+			t.Errorf("Slot %q hat keinen Matcher", a.ID)
+		}
+	}
+	if got := Defaults(); len(got.Apps) != len(defs) {
+		t.Errorf("Defaults.Apps = %d", len(got.Apps))
+	}
+}
+
+func TestLoadWithoutAppsKeepsDefaults(t *testing.T) {
+	clearAidEnv(t)
+	path := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(path, []byte(`{"monitor": 1}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Apps) != len(DefaultApps()) {
+		t.Errorf("Apps = %d, erwartet Defaults (%d)", len(cfg.Apps), len(DefaultApps()))
+	}
+}
+
+func TestLoadCustomApps(t *testing.T) {
+	clearAidEnv(t)
+	path := filepath.Join(t.TempDir(), "config.json")
+	content := `{"apps": [{"id": "edit", "scan_code": 2, "process": "Code.exe", "monitor": 1, "alpha": 200}]}`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Apps) != 1 || cfg.Apps[0].ID != "edit" {
+		t.Fatalf("Apps = %+v", cfg.Apps)
+	}
+	app, ok := cfg.LookupApp("edit")
+	if !ok || app.Alpha != 200 {
+		t.Errorf("LookupApp = %+v %v", app, ok)
+	}
+	if _, ok := cfg.LookupApp("fehlt"); ok {
+		t.Errorf("unbekannte ID darf nicht gefunden werden")
+	}
+}
+
+func TestEffectiveMonitor(t *testing.T) {
+	c := Defaults()
+	c.Monitor = 2
+	if got := c.EffectiveMonitor(App{Monitor: 1}); got != 1 {
+		t.Errorf("Slot-Monitor = %d, erwartet 1", got)
+	}
+	if got := c.EffectiveMonitor(App{}); got != 2 {
+		t.Errorf("globaler Monitor = %d, erwartet 2", got)
+	}
+}
+
+func TestExpandArgs(t *testing.T) {
+	t.Setenv("FOO", "bar")
+	c := Defaults()
+	got := c.ExpandArgs([]string{`%FOO%\x.exe`, "--flag"})
+	if len(got) != 2 || got[0] != `bar\x.exe` || got[1] != "--flag" {
+		t.Errorf("ExpandArgs = %v", got)
 	}
 }

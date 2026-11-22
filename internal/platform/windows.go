@@ -25,6 +25,7 @@ var (
 
 	procEnumWindows              = user32.NewProc("EnumWindows")
 	procGetForegroundWindow      = user32.NewProc("GetForegroundWindow")
+	procGetShellWindow           = user32.NewProc("GetShellWindow")
 	procGetWindowThreadProcessID = user32.NewProc("GetWindowThreadProcessId")
 	procGetWindowTextW           = user32.NewProc("GetWindowTextW")
 	procGetWindowTextLengthW     = user32.NewProc("GetWindowTextLengthW")
@@ -43,6 +44,12 @@ var (
 	procMonitorFromPoint         = user32.NewProc("MonitorFromPoint")
 	procEnumDisplayMonitors      = user32.NewProc("EnumDisplayMonitors")
 	procGetMonitorInfoW          = user32.NewProc("GetMonitorInfoW")
+	procGetClassNameW            = user32.NewProc("GetClassNameW")
+	procGetWindow                = user32.NewProc("GetWindow")
+	procGetWindowLongPtrW        = user32.NewProc("GetWindowLongPtrW")
+	procSetWindowLongPtrW        = user32.NewProc("SetWindowLongPtrW")
+	procGetLayeredWindowAttribs  = user32.NewProc("GetLayeredWindowAttributes")
+	procSetLayeredWindowAttribs  = user32.NewProc("SetLayeredWindowAttributes")
 	procSystemParametersInfoW    = user32.NewProc("SystemParametersInfoW")
 	procSetWindowsHookExW        = user32.NewProc("SetWindowsHookExW")
 	procCallNextHookEx           = user32.NewProc("CallNextHookEx")
@@ -67,17 +74,41 @@ const (
 
 	swpNoZOrder   = 0x0004
 	swpNoActivate = 0x0010
+	swpNoSize     = 0x0001
+	swpNoMove     = 0x0002
+	swpShowWindow = 0x0040
 
 	monitorInfofPrimary = 0x0001
 
 	monitorDefaultToPrimary = 0x00000001
+)
+
+// gwlExStyle ist negativ und daher keine Konstante, die sich nach uintptr
+// konvertieren lässt.
+var gwlExStyle int32 = -20
+
+// HWND_TOPMOST/HWND_NOTOPMOST sind negative Pseudo-Handles.
+var (
+	hwndTopmostFlag    int32 = -1
+	hwndNotTopmostFlag int32 = -2
+)
+
+const (
+	wsExLayered  = 0x00080000
+	lwaAlpha     = 0x00000002
+	gwOwner      = 4
+	alphaOpaque  = 255
+	alphaUnknown = -1
 
 	processQueryLimitedInformation = 0x1000
 
 	stillActive = 259
 
-	spiGetAnimation = 0x1042
-	spiSetAnimation = 0x1043
+	// SPI_GETANIMATION/SPI_SETANIMATION: steuern die Fenster-Animation
+	// (Minimieren/Maximieren). 0x1042/0x1043 waeren CLIENTAREAANIMATION und
+	// damit wirkungslos fuer Fenster.
+	spiGetAnimation = 0x0048
+	spiSetAnimation = 0x0049
 
 	whKeyboardLL = 13
 
@@ -216,13 +247,36 @@ func (w *winWindow) Title() string {
 	return syscall.UTF16ToString(buf)
 }
 
-func (w *winWindow) ProcessName() string {
+// PID liefert die Prozess-ID des Fensters.
+func (w *winWindow) PID() uint32 {
 	var pid uint32
 	procGetWindowThreadProcessID.Call(uintptr(w.hwnd), uintptr(unsafe.Pointer(&pid)))
+	return pid
+}
+
+func (w *winWindow) ProcessName() string {
+	pid := w.PID()
 	if pid == 0 {
 		return ""
 	}
 	return processNameForPID(pid)
+}
+
+// ClassName liefert die Fensterklasse (z. B. CabinetWClass).
+func (w *winWindow) ClassName() string {
+	buf := make([]uint16, 256)
+	n, _, _ := procGetClassNameW.Call(uintptr(w.hwnd), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+	if n == 0 {
+		return ""
+	}
+	return syscall.UTF16ToString(buf[:n])
+}
+
+// Owner liefert das Besitzer-Fenster (0 = keins). Dialoge tragen hier ihren
+// Aufrufer.
+func (w *winWindow) Owner() uintptr {
+	h, _, _ := procGetWindow.Call(uintptr(w.hwnd), gwOwner)
+	return h
 }
 
 func (w *winWindow) isVisible() bool {
@@ -259,9 +313,83 @@ func (w *winWindow) Restore() error {
 // Minimize versteckt das Fenster (SW_HIDE). Bewusst KEIN SW_MINIMIZE: das
 // setzt die Client-Groesse auf 0, ConPTY meldet 0x0 an herdr/opencode und die
 // opencode-Session bricht ab.
-func (w *winWindow) Minimize() error {
+func (w *winWindow) Minimize() error { return w.Hide() }
+
+// Hide versteckt das Fenster ohne Animation (SW_HIDE). Es bleibt am Leben,
+// verliert aber Taskbar- und Alt-Tab-Praesenz.
+//
+// War das Fenster im Vordergrund, uebernimmt anschliessend die Shell (Desktop)
+// den Vordergrund. Sonst bleibt Windows in einem Zustand ohne Vordergrundfenster
+// zurueck, in dem SetForegroundWindow beim naechsten Zeigen blockiert wird.
+func (w *winWindow) Hide() error {
+	wasForeground := foregroundIs(uintptr(w.hwnd))
 	procShowWindow.Call(uintptr(w.hwnd), swHide)
+	if wasForeground {
+		activateShell()
+	}
 	return nil
+}
+
+// activateShell holt das Shell-Fenster (Desktop) in den Vordergrund.
+func activateShell() {
+	hwnd, _, _ := procGetShellWindow.Call()
+	if hwnd == 0 {
+		return
+	}
+	procSetForegroundWindow.Call(hwnd)
+}
+
+// SetAlpha setzt die Deckkraft (1..254). 0 bedeutet "nichts tun", 255 entfernt
+// die kuenstliche Transparenz wieder. Native Transparenz (WezTerm, Windows
+// Terminal, Pear Desktop) wird nie angefasst, weil dort kein Alpha konfiguriert
+// ist.
+func (w *winWindow) SetAlpha(alpha uint8) error {
+	if alpha == 0 {
+		return nil
+	}
+	hwnd := uintptr(w.hwnd)
+	ex, _, _ := procGetWindowLongPtrW.Call(hwnd, uintptr(gwlExStyle))
+	if int(alpha) >= alphaOpaque {
+		if ex&wsExLayered != 0 {
+			procSetWindowLongPtrW.Call(hwnd, uintptr(gwlExStyle), ex&^wsExLayered)
+		}
+		return nil
+	}
+	if ex&wsExLayered == 0 {
+		procSetWindowLongPtrW.Call(hwnd, uintptr(gwlExStyle), ex|wsExLayered)
+	}
+	if ret, _, err := procSetLayeredWindowAttribs.Call(hwnd, 0, uintptr(alpha), lwaAlpha); ret == 0 {
+		return fmt.Errorf("SetLayeredWindowAttributes: %w", err)
+	}
+	return nil
+}
+
+// Alpha liefert die aktuelle Deckkraft (255 = deckend bzw. nicht layered).
+func (w *winWindow) Alpha() int {
+	hwnd := uintptr(w.hwnd)
+	ex, _, _ := procGetWindowLongPtrW.Call(hwnd, uintptr(gwlExStyle))
+	if ex&wsExLayered == 0 {
+		return alphaOpaque
+	}
+	var key, alpha, flags uint32
+	if ret, _, _ := procGetLayeredWindowAttribs.Call(
+		hwnd, uintptr(unsafe.Pointer(&key)), uintptr(unsafe.Pointer(&alpha)), uintptr(unsafe.Pointer(&flags)),
+	); ret == 0 || flags&lwaAlpha == 0 {
+		return alphaOpaque
+	}
+	return int(alpha)
+}
+
+// Rect liefert das Fensterrechteck in Bildschirmkoordinaten.
+func (w *winWindow) Rect() (window.Rect, bool) {
+	var wr rect
+	if ret, _, _ := procGetWindowRect.Call(uintptr(w.hwnd), uintptr(unsafe.Pointer(&wr))); ret == 0 {
+		return window.Rect{}, false
+	}
+	return window.Rect{
+		Left: int(wr.Left), Top: int(wr.Top),
+		Right: int(wr.Right), Bottom: int(wr.Bottom),
+	}, true
 }
 
 func (w *winWindow) ShowNormal() error {
@@ -296,6 +424,12 @@ func (w *winWindow) Focus() error {
 	curThread, _, _ := procGetCurrentThreadID.Call()
 	for attempt := 0; attempt < 3 && !foregroundIs(hwnd); attempt++ {
 		fg, _, _ := procGetForegroundWindow.Call()
+		if fg == 0 {
+			// Ohne Vordergrundfenster ist AttachThreadInput nicht moeglich;
+			// erst die Shell aktivieren, dann normal weiter.
+			activateShell()
+			fg, _, _ = procGetForegroundWindow.Call()
+		}
 		fgThread, _, _ := procGetWindowThreadProcessID.Call(fg, 0)
 		attached := false
 		if fgThread != 0 && fgThread != curThread {
@@ -319,6 +453,16 @@ func (w *winWindow) Focus() error {
 	}
 	if !foregroundIs(hwnd) {
 		procSwitchToThisWindow.Call(hwnd, 1)
+	}
+	// Letzter Ausweg: kurz topmost machen. Das ordnet das Fenster zwingend
+	// oben ein, auch wenn der Vordergrund gerade auf einem versteckten
+	// Hilfsfenster desselben Prozesses haengt (typisch nach SW_HIDE).
+	if !foregroundIs(hwnd) {
+		hwndTopmost := uintptr(int32(hwndTopmostFlag))
+		hwndNoTopmost := uintptr(int32(hwndNotTopmostFlag))
+		procSetWindowPos.Call(hwnd, hwndTopmost, 0, 0, 0, 0, swpNoMove|swpNoSize|swpShowWindow)
+		procSetWindowPos.Call(hwnd, hwndNoTopmost, 0, 0, 0, 0, swpNoMove|swpNoSize)
+		procSetForegroundWindow.Call(hwnd)
 	}
 	return nil
 }
@@ -453,6 +597,32 @@ func monitorRect(index int) (rect, bool) {
 
 // primaryMonitorRect liefert das Rechteck des Primärmonitors über
 // MonitorFromPoint(POINT{0,0}, MONITOR_DEFAULTTOPRIMARY).
+// MonitorWorkArea liefert den Arbeitsbereich (ohne Taskleiste) eines Monitors.
+func MonitorWorkArea(index int) (window.Rect, bool) {
+	r, ok := monitorRect(index)
+	if !ok {
+		return window.Rect{}, false
+	}
+	return window.Rect{
+		Left: int(r.Left), Top: int(r.Top),
+		Right: int(r.Right), Bottom: int(r.Bottom),
+	}, true
+}
+
+// StartProcess startet einen Prozess ohne Konsolenfenster und ohne zu warten.
+func StartProcess(argv []string) error {
+	if len(argv) == 0 {
+		return fmt.Errorf("leerer Startbefehl")
+	}
+	cmd := exec.Command(argv[0], argv[1:]...)
+	HideConsole(cmd)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go func() { _ = cmd.Wait() }()
+	return nil
+}
+
 func primaryMonitorRect() (rect, bool) {
 	p := point{X: 0, Y: 0}
 	hmon, _, _ := procMonitorFromPoint.Call(
@@ -509,6 +679,20 @@ func SetAnimations(enabled bool) error {
 	return nil
 }
 
+// ForegroundProcessName liefert den Prozessnamen des Vordergrundfensters.
+func ForegroundProcessName() string {
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	if hwnd == 0 {
+		return ""
+	}
+	var pid uint32
+	procGetWindowThreadProcessID.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
+	if pid == 0 {
+		return ""
+	}
+	return processNameForPID(pid)
+}
+
 // ProcessAlive prüft, ob ein Prozess mit der PID noch läuft.
 func ProcessAlive(pid int) bool {
 	if pid <= 0 {
@@ -528,7 +712,7 @@ func ProcessAlive(pid int) bool {
 }
 
 // NewHook liefert den echten WH_KEYBOARD_LL-Hook.
-func NewHook(cfg hotkey.Config) hotkey.Hook { return &windowsHook{cfg: cfg} }
+func NewHook(set hotkey.Set) hotkey.Hook { return &windowsHook{set: set} }
 
 // HideConsole verhindert, dass beim Starten von Konsolenprogrammen (z. B.
 // herdr) aus dem GUI-Daemon heraus ein Konsolenfenster aufblitzt.
@@ -542,13 +726,17 @@ func HideConsole(cmd *exec.Cmd) {
 	}
 }
 
-type windowsHook struct{ cfg hotkey.Config }
+type windowsHook struct{ set hotkey.Set }
 
 var (
 	activeHookCallback uintptr
 	activeHookProc     uintptr
 	activeHookEvents   chan<- hotkey.Event
-	activeHookCfg      hotkey.Config
+	activeHookSet      hotkey.Set
+	// swallowed merkt sich, welche Keydowns der Hook geschluckt hat, damit
+	// auch das zugehoerige Keyup geschluckt wird (kein haengender Tastenstatus
+	// in der Ziel-App). Zugriff nur aus dem Hook-Thread.
+	swallowed = map[uint32]bool{}
 )
 
 func (h *windowsHook) Run(ctx context.Context, events chan<- hotkey.Event) error {
@@ -556,7 +744,7 @@ func (h *windowsHook) Run(ctx context.Context, events chan<- hotkey.Event) error
 	defer runtime.UnlockOSThread()
 
 	activeHookEvents = events
-	activeHookCfg = h.cfg
+	activeHookSet = h.set
 	activeHookCallback = syscall.NewCallback(lowLevelKeyboardProc)
 
 	hHook, _, err := procSetWindowsHookExW.Call(whKeyboardLL, activeHookCallback, 0, 0)
@@ -617,7 +805,13 @@ func lowLevelKeyboardProc(nCode int, wParam uintptr, lParam unsafe.Pointer) uint
 			default:
 			}
 		}
-		if hotkey.Matches(e, activeHookCfg) {
+		if down {
+			if activeHookSet.Matches(e) {
+				swallowed[k.ScanCode] = true
+				return 1
+			}
+		} else if swallowed[k.ScanCode] {
+			delete(swallowed, k.ScanCode)
 			return 1
 		}
 	}

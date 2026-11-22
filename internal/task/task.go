@@ -40,7 +40,11 @@ func Unregister(ctx context.Context) error {
 
 // Query liefert (installed, info, err). info fasst State/LastRun/Result zusammen.
 func Query(ctx context.Context) (bool, string, error) {
-	out, err := runPowerShell(ctx, queryScript)
+	script := strings.NewReplacer(
+		"{{NAME}}", psQuote(Name),
+		"{{DIR}}", psQuote(Dir),
+	).Replace(queryScript)
+	out, err := runPowerShell(ctx, script)
 	info := strings.TrimSpace(out)
 	if err != nil {
 		return false, info, err

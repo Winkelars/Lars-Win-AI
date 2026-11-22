@@ -5,18 +5,36 @@ package window
 
 import "strings"
 
+// Rect ist ein Bildschirmrechteck in physischen Pixeln.
+type Rect struct {
+	Left, Top, Right, Bottom int
+}
+
+// Width liefert die Breite.
+func (r Rect) Width() int { return r.Right - r.Left }
+
+// Height liefert die Höhe.
+func (r Rect) Height() int { return r.Bottom - r.Top }
+
 // Window ist ein einzelnes steuerbares Top-Level-Fenster.
 type Window interface {
 	Handle() uintptr
 	Title() string
 	ProcessName() string
+	PID() uint32
+	ClassName() string
+	Owner() uintptr
 	IsForeground() bool
 	IsMinimized() bool
 	IsVisible() bool
 	Restore() error
 	Minimize() error
+	Hide() error
 	ShowNormal() error
 	Focus() error
+	SetAlpha(alpha uint8) error
+	Alpha() int
+	Rect() (Rect, bool)
 	MoveAndMaximize(monitor int) error
 }
 
@@ -45,6 +63,14 @@ func ProcessMatches(process, want string) bool {
 	p := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(process)), ".exe")
 	w := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(want)), ".exe")
 	return p == w
+}
+
+// ClassMatches vergleicht Fensterklassen exakt (case-insensitiv).
+func ClassMatches(class, want string) bool {
+	if strings.TrimSpace(want) == "" {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(class), strings.TrimSpace(want))
 }
 
 // Find sucht zuerst über den Titel und fällt dann auf den Prozessnamen zurück.

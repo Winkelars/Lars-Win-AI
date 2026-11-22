@@ -5,23 +5,32 @@ type FakeWindow struct {
 	Hwnd        uintptr
 	WindowTitle string
 	Process     string
+	Pid         uint32
+	WindowClass string
+	OwnerHwnd   uintptr
 	Foreground  bool
 	Minimized   bool
 	Hidden      bool
+	AlphaValue  int
 
 	Monitor         int
 	RestoreCalls    int
 	MinimizeCalls   int
+	HideCalls       int
 	ShowNormalCalls int
 	FocusCalls      int
+	AlphaCalls      int
 	MoveCalls       []int
+
+	WindowRect Rect
+	HasRect    bool
 
 	Err error
 }
 
 // NewFakeWindow erstellt ein FakeWindow mit Default-Handle.
 func NewFakeWindow(title, process string) *FakeWindow {
-	return &FakeWindow{Hwnd: 1000, WindowTitle: title, Process: process}
+	return &FakeWindow{Hwnd: 1000, WindowTitle: title, Process: process, AlphaValue: 255}
 }
 
 // Handle liefert das Fake-Handle.
@@ -32,6 +41,15 @@ func (f *FakeWindow) Title() string { return f.WindowTitle }
 
 // ProcessName liefert den Prozessnamen.
 func (f *FakeWindow) ProcessName() string { return f.Process }
+
+// PID liefert die Fake-Prozess-ID.
+func (f *FakeWindow) PID() uint32 { return f.Pid }
+
+// ClassName liefert die Fensterklasse.
+func (f *FakeWindow) ClassName() string { return f.WindowClass }
+
+// Owner liefert das Besitzer-Fenster (0 = keins).
+func (f *FakeWindow) Owner() uintptr { return f.OwnerHwnd }
 
 // IsForeground meldet, ob das Fenster im Vordergrund ist.
 func (f *FakeWindow) IsForeground() bool { return f.Foreground }
@@ -49,10 +67,18 @@ func (f *FakeWindow) Restore() error {
 	return f.Err
 }
 
-// Minimize versteckt das Fenster (Growth bleibt unveraendert).
+// Minimize versteckt das Fenster (verhält sich wie Hide).
 func (f *FakeWindow) Minimize() error {
 	f.MinimizeCalls++
 	f.Minimized = true
+	f.Hidden = true
+	f.Foreground = false
+	return f.Err
+}
+
+// Hide versteckt das Fenster ohne Minimieren.
+func (f *FakeWindow) Hide() error {
+	f.HideCalls++
 	f.Hidden = true
 	f.Foreground = false
 	return f.Err
@@ -62,6 +88,7 @@ func (f *FakeWindow) Minimize() error {
 func (f *FakeWindow) ShowNormal() error {
 	f.ShowNormalCalls++
 	f.Minimized = false
+	f.Hidden = false
 	return f.Err
 }
 
@@ -69,8 +96,27 @@ func (f *FakeWindow) ShowNormal() error {
 func (f *FakeWindow) Focus() error {
 	f.FocusCalls++
 	f.Foreground = true
+	f.Hidden = false
 	return f.Err
 }
+
+// SetAlpha merkt sich den angeforderten Alphawert.
+func (f *FakeWindow) SetAlpha(alpha uint8) error {
+	f.AlphaCalls++
+	f.AlphaValue = int(alpha)
+	return f.Err
+}
+
+// Alpha liefert den aktuellen Alphawert (255 = deckend).
+func (f *FakeWindow) Alpha() int {
+	if f.AlphaValue == 0 {
+		return 255
+	}
+	return f.AlphaValue
+}
+
+// Rect liefert das Fake-Rechteck, falls gesetzt.
+func (f *FakeWindow) Rect() (Rect, bool) { return f.WindowRect, f.HasRect }
 
 // MoveAndMaximize merkt sich den Zielmonitor und die Aufrufe.
 func (f *FakeWindow) MoveAndMaximize(monitor int) error {
